@@ -7,12 +7,14 @@ import (
 
 type KB11 struct {
 	unibus UNIBUS
+	mmu    KT11
 
 	pc uint16    // holds R[7] during instruction execution
 	R  [8]uint16 // R0-R7
 
-	psw          uint16    // processor status word
-	stackpointer [4]uint16 // Alternate R6 (kernel, super, illegal, user)
+	psw                        uint16    // processor status word
+	stackpointer               [4]uint16 // Alternate R6 (kernel, super, illegal, user)
+	stacklimit, switchregister uint16
 }
 
 func (kb *KB11) Reset() {
@@ -451,7 +453,7 @@ func (kb *KB11) COM(l int, instr uint16) {
 	da := kb.DA(instr)
 	dst := ^kb.memread(l, da)
 	kb.memwrite(l, da, dst)
-	setNZC(2, dst)
+	kb.setNZC(2, dst)
 }
 
 // INC 0052DD, INCB 1052DD
@@ -496,7 +498,7 @@ func (kb *KB11) ADC(l int, instr uint16) {
 	if kb.c() {
 		kb.memwrite(l, da, (uval+1)&max(l))
 		kb.psw &= 0xFFF0
-		if (uval + 1) & msb {
+		if (uval+1)&msb(l) > 0 {
 			kb.psw |= FLAGN
 		}
 		if uval == max(l) {
@@ -581,7 +583,7 @@ func (kb *KB11) ROR(l int, instr uint16) {
 	if !(sval&max(l) > 0) {
 		kb.psw |= FLAGZ
 	}
-	if (sval&1 == 1) != (sval & (max(l)+1 == max(l)+1)) {
+	if (sval&1 == 1) != (sval & (max(l) + 1)) > 0 {
 		kb.psw |= FLAGV
 	}
 	sval >>= 1
@@ -604,7 +606,7 @@ func (kb *KB11) ROL(l int, instr uint16) {
 	if !(sval&max(l) > 0) {
 		kb.psw |= FLAGZ
 	}
-	if (sval ^ (sval >> 1)) & msb(l) {
+	if (sval^(sval>>1))&msb(l) > 0 {
 		kb.psw |= FLAGV
 	}
 	sval &= max(l)
@@ -636,13 +638,13 @@ func (kb *KB11) ASL(l int, instr uint16) {
 	// TODO(dfc) doesn't need to be an sval
 	sval := kb.memread(l, da)
 	kb.psw &= 0xFFF0
-	if sval & msb(l) {
+	if sval&msb(l) > 0 {
 		kb.psw |= FLAGC
 	}
-	if sval & (msb(l) >> 1) {
+	if sval&(msb(l)>>1) > 0 {
 		kb.psw |= FLAGN
 	}
-	if (sval ^ (sval << 1)) & msb(l) {
+	if (sval^(sval<<1))&msb(l) > 0 {
 		kb.psw |= FLAGV
 	}
 	sval = (sval << 1) & max(l)
@@ -673,7 +675,7 @@ func (kb *KB11) MFPI(instr uint16) {
 		kb.printstate()
 		os.Exit(1)
 	} else {
-		uval = kb.unibus.read16(kb.mmu.decode(false, da, kb.previousmode()))
+		uval = kb.unibus.Read16(kb.mmu.decode(false, da, kb.previousmode()))
 	}
 	kb.push(uval)
 	kb.setNZ(2, uval)
@@ -686,16 +688,16 @@ func (kb *KB11) MTPI(instr uint16) {
 		if (kb.currentmode() == 3) && (kb.previousmode() == 3) {
 			kb.R[6] = uval
 		} else {
-			kb.stackpointer[previousmode()] = uval
+			kb.stackpointer[kb.previousmode()] = uval
 		}
 	} else if isReg(da) {
 		fmt.Printf("invalid MTPI instrution\n")
 		kb.printstate()
 		os.Exit(1)
 	} else {
-		kb.unibus.write16(kb.mmu.decode(true, da, kb.previousmode()), uval)
+		kb.unibus.Write16(kb.mmu.decode(true, da, kb.previousmode()), uval)
 	}
-	setNZ(2, uval)
+	kb.setNZ(2, uval)
 }
 
 // SXT 0067DD
@@ -708,15 +710,15 @@ func (kb *KB11) SXT(instr uint16) {
 	}
 
 	result := n()
-	memwrite(2, kb.DA(instr), result)
-	setNZ(2, result)
+	kb.memwrite(2, kb.DA(instr), result)
+	kb.setNZ(2, result)
 }
 
 // MOV 01SSDD, MOVB 11SSDD
 func (kb *KB11) MOV(len int, instr uint16) {
-	src := memread(len, kb.SA(instr))
-	if !(instr & 0x38) && (len == 1) {
-		if src & 0200 {
+	src := kb.memread(len, kb.SA(instr))
+	if !(instr&0x38 > 0) && (len == 1) {
+		if src&0200 > 0 {
 			// Special case: movb sign extends register to word size
 			src |= 0xFF00
 		}
@@ -724,8 +726,8 @@ func (kb *KB11) MOV(len int, instr uint16) {
 		kb.setNZ(len, src)
 		return
 	}
-	memwrite(len, kb.DA(instr), src)
-	setNZ(len, src)
+	kb.memwrite(len, kb.DA(instr), src)
+	kb.setNZ(len, src)
 }
 
 // CMP 02SSDD, CMPB 12SSDD
@@ -738,7 +740,7 @@ func (kb *KB11) CMP(l int, instr uint16) {
 	if sval == 0 {
 		kb.psw |= FLAGZ
 	}
-	if sval & msb(l) {
+	if sval&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
 	if ((val1 ^ val2) & msb(l)) && (!((val2 ^ sval) & msb(l))) {
@@ -754,13 +756,13 @@ func (kb *KB11) BIT(l int, instr uint16) {
 	src := kb.memread(l, kb.SA(instr))
 	dst := kb.memread(l, kb.DA(instr))
 	result := src & dst
-	setNZ(l, result)
+	kb.setNZ(l, result)
 }
 
 func (kb *KB11) BIC(l int, instr uint16) {
 	val1 := kb.memread(l, kb.SA(instr))
 	da := kb.DA(instr)
-	val2 = kb.memread(l, da)
+	val2 := kb.memread(l, da)
 	uval := (max ^ val1) & val2
 	kb.memwrite(l, da, uval)
 	kb.psw &= 0xFFF1
@@ -786,64 +788,67 @@ func (kb *KB11) ADD(instr uint16) {
 	da := kb.DA(instr)
 	val2 := kb.memread(2, da)
 	uval := val1 + val2
-	kb.memwrite(da, uval)
-	PSW &= 0xFFF0
-	setZ(uval == 0)
-	if uval & 0x8000 {
-		PSW |= FLAGN
+	kb.memwrite(2, da, uval)
+	kb.psw &= 0xFFF0
+	if uval == 0 {
+		kb.psw |= FLAGN
 	}
 	if !((val1 ^ val2) & 0x8000) && ((val2 ^ uval) & 0x8000) {
-		PSW |= FLAGV
+		kb.psw |= FLAGV
 	}
 	if (val1 + val2) >= 0xFFFF {
-		PSW |= FLAGC
+		kb.psw |= FLAGC
 	}
 }
 
 func (kb *KB11) MUL(instr uint16) {
 	val1 := kb.R[(instr>>6)&7]
-	if val1 & 0x8000 {
+	if val1&0x8000 > 0 {
 		val1 = -((0xFFFF ^ val1) + 1)
 	}
 	da := kb.DA(instr)
 	val2 := kb.memread(2, da)
-	if val2 & 0x8000 {
+	if val2&0x8000 > 0 {
 		val2 = -((0xFFFF ^ val2) + 1)
 	}
 	sval := uint32(val1) * uint32(val2)
 	kb.R[(instr>>6)&7] = uint16(sval >> 16)
 	kb.R[((instr>>6)&7)|1] = uint16(sval & 0xFFFF)
-	PSW &= 0xFFF0
-	if sval & 0x80000000 {
-		PSW |= FLAGN
+	kb.psw &= 0xFFF0
+	if sval&0x80000000 > 0 {
+		kb.psw |= FLAGN
 	}
-	setZ((sval & 0xFFFFFFFF) == 0)
+	if sval&0xFFFFFFFF == 0 {
+		kb.psw |= FLAGZ
+	}
 	if (sval < (1 << 15)) || (sval >= ((1 << 15) - 1)) {
-		PSW |= FLAGC
+		kb.psw |= FLAGC
 	}
 }
 
 func (kb *KB11) DIV(instr uint16) {
 	val1 := uint32(kb.R[(instr>>6)&7]<<16) | uint32(kb.R[((instr>>6)&7)|1])
 	da := kb.DA(instr)
-	val2 := kb.memread(2, da)
-	PSW &= 0xFFF0
+	val2 := uint32(kb.memread(2, da))
+	kb.psw &= 0xFFF0
 	if val2 == 0 {
-		PSW |= FLAGC
+		kb.psw |= FLAGC
 		return
 	}
 	if (val1 / val2) >= 0x10000 {
-		PSW |= FLAGV
+		kb.psw |= FLAGV
 		return
 	}
-	R[(instr>>6)&7] = (val1 / val2) & 0xFFFF
-	R[((instr>>6)&7)|1] = (val1 % val2) & 0xFFFF
-	setZ(R[(instr>>6)&7] == 0)
-	if R[(instr>>6)&7] & 0100000 {
-		PSW |= FLAGN
+	kb.R[(instr>>6)&7] = uint16(val1 / val2)
+	kb.R[((instr>>6)&7)|1] = uint16(val1 % val2)
+	if kb.R[(instr>>6)&7] == 0 {
+		kb.psw |= FLAGZ
+	}
+	if kb.R[(instr>>6)&7]&0100000 > 0 {
+		kb.psw |= FLAGN
 	}
 	if val1 == 0 {
-		PSW |= FLAGV
+		kb.psw |= FLAGV
 	}
 }
 
@@ -851,66 +856,70 @@ func (kb *KB11) ASH(instr uint16) {
 	val1 := kb.R[(instr>>6)&7]
 	da := kb.DA(instr)
 	val2 := kb.memread(2, da) & 077
-	PSW &= 0xFFF0
-	var sval int32
-	if val2 & 040 {
+	kb.psw &= 0xFFF0
+	var sval uint16
+	if val2&040 > 0 {
 		val2 = (077 ^ val2) + 1
-		if val1 & 0100000 {
+		if val1&0100000 > 0 {
 			sval = 0xFFFF ^ (0xFFFF >> val2)
 			sval |= val1 >> val2
 		} else {
 			sval = val1 >> val2
 		}
-		if val1 & (1 << (val2 - 1)) {
-			PSW |= FLAGC
+		if val1&(1<<(val2-1)) > 0 {
+			kb.psw |= FLAGC
 		}
 	} else {
-		sval = (val1 << val2) & 0xFFFF
-		if val1 & (1 << (16 - val2)) {
-			PSW |= FLAGC
+		sval = (val1 << val2)
+		if val1&(1<<(16-val2)) > 0 {
+			kb.psw |= FLAGC
 		}
 	}
-	R[(instr>>6)&7] = sval
-	setZ(sval == 0)
-	if sval & 0100000 {
-		PSW |= FLAGN
+	kb.R[(instr>>6)&7] = sval
+	if sval == 0 {
+		kb.psw |= FLAGZ
 	}
-	if (sval & 0100000) ^ (val1 & 0100000) {
-		PSW |= FLAGV
+	if sval&0100000 > 0 {
+		kb.psw |= FLAGN
+	}
+	if (sval&0100000)^(val1&0100000) > 0 {
+		kb.psw |= FLAGV
 	}
 }
 
 func (kb *KB11) ASHC(instr uint16) {
 	val1 := uint32(kb.R[(instr>>6)&7]<<16) | uint32(kb.R[((instr>>6)&7)|1])
 	da := kb.DA(instr)
-	val2 := memread(2, da) & 077
-	PSW &= 0xFFF0
-	var sval int32
-	if val2 & 040 {
+	val2 := kb.memread(2, da) & 077
+	kb.psw &= 0xFFF0
+	var sval uint32
+	if val2&040 > 0 {
 		val2 = (077 ^ val2) + 1
-		if val1 & 0x80000000 {
+		if val1&0x80000000 > 0 {
 			sval = 0xFFFFFFFF ^ (0xFFFFFFFF >> val2)
-			sval |= val1 >> val2
+			sval |= uint32(val1 >> val2)
 		} else {
 			sval = val1 >> val2
 		}
-		if val1 & (1 << (val2 - 1)) {
-			PSW |= FLAGC
+		if val1&(1<<(val2-1)) > 0 {
+			kb.psw |= FLAGC
 		}
 	} else {
 		sval = (val1 << val2) & 0xFFFFFFFF
-		if val1 & (1 << (32 - val2)) {
-			PSW |= FLAGC
+		if val1&(1<<(32-val2)) > 0 {
+			kb.psw |= FLAGC
 		}
 	}
-	R[(instr>>6)&7] = (sval >> 16) & 0xFFFF
-	R[((instr>>6)&7)|1] = sval & 0xFFFF
-	setZ(sval == 0)
-	if sval & 0x80000000 {
-		PSW |= FLAGN
+	kb.R[(instr>>6)&7] = (sval >> 16) & 0xFFFF
+	kb.R[((instr>>6)&7)|1] = sval & 0xFFFF
+	if sval == 0 {
+		kb.psw |= FLAGZ
 	}
-	if (sval & 0x80000000) ^ (val1 & 0x80000000) {
-		PSW |= FLAGV
+	if sval&0x80000000 > 0 {
+		kb.psw |= FLAGN
+	}
+	if (sval&0x80000000)^(val1&0x80000000) > 0 {
+		kb.psw |= FLAGV
 	}
 }
 
@@ -921,13 +930,13 @@ func (kb *KB11) XOR(instr uint16) {
 	dst := kb.memread(2, da)
 	dst = reg ^ dst
 	kb.memwrite(2, da, dst)
-	setNZ(2, dst)
+	kb.setNZ(2, dst)
 }
 
 // SOB 077RNN
 func (kb *KB11) SOB(instr uint16) {
 	kb.R[(instr>>6)&7]--
-	if kb.R[(instr>>6)&7] {
+	if kb.R[(instr>>6)&7] > 0 {
 		kb.R[7] -= (instr & 077) << 1
 	}
 }
@@ -939,17 +948,19 @@ func (kb *KB11) SUB(instr uint16) {
 	da := kb.DA(instr)
 	val2 := kb.memread(2, da)
 	uval := (val2 - val1)
-	PSW &= 0xFFF0
 	kb.memwrite(2, da, uval)
-	setZ(uval == 0)
-	if uval & 0x8000 {
-		PSW |= FLAGN
+	kb.psw &= 0xFFF0
+	if uval == 0 {
+		kb.psw |= FLAGZ
 	}
-	if ((val1 ^ val2) & 0x8000) && (!((val2 ^ uval) & 0x8000)) {
-		PSW |= FLAGV
+	if uval&0x8000 > 0 {
+		kb.psw |= FLAGN
+	}
+	if ((val1^val2)&0x8000 > 0) && (!((val2^uval)&0x8000 > 0)) {
+		kb.psw |= FLAGV
 	}
 	if val1 > val2 {
-		PSW |= FLAGC
+		kb.psw |= FLAGC
 	}
 }
 
@@ -967,7 +978,7 @@ func (kb *KB11) trapat(vec uint16) {
 	kb.push(kb.R[7])
 
 	kb.R[7] = kb.read16(vec)
-	kb.writePSW(kb.read16(vec+2) | (previousmode() << 12))
+	kb.writePSW(kb.read16(vec+2) | (kb.previousmode() << 12))
 }
 
 func (kb *KB11) fetch16() uint16 {
@@ -978,13 +989,72 @@ func (kb *KB11) fetch16() uint16 {
 
 func (kb *KB11) push(v uint16) {
 	kb.R[6] -= 2
-	write16(kb.R[6], v)
+	kb.write16(kb.R[6], v)
 }
 
 func (kb *KB11) pop() uint16 {
 	val := kb.read16(kb.R[6])
-	lb.R[6] += 2
+	kb.R[6] += 2
 	return val
+}
+
+func (kb *KB11) read(l int, va uint16) uint16 {
+	if l == 2 {
+		return kb.read16(va)
+	}
+	if va & 1 {
+		return kb.read16(va&^1) >> 8
+	}
+	return kb.read16(va&^1) & 0xFF
+}
+
+func (kb *KB11) write(l int, va, v uint16) {
+	if l == 2 {
+		write16(va, v)
+		return
+	}
+	if va & 1 {
+		write16(va&^1, (read16(va&^1)&0xFF)|(v&0xFF)<<8)
+	} else {
+		write16(va, (read16(va)&0xFF00)|(v&0xFF))
+	}
+}
+
+func (kb *KB11) read16(va uint16) uint16 {
+	a := kb.mmu.decode(false, va, kb.currentmode())
+	switch a {
+	case 0777776:
+		return kb.psw
+	case 0777774:
+		return kb.stacklimit
+	case 0777570:
+		return kb.switchregister
+	default:
+		return kb.unibus.Read16(a)
+	}
+}
+
+func (kb *KB11) write16(va, v uint16) {
+	a := kb.mmu.decode(true, va, kb.currentmode())
+	switch a {
+	case 0777776:
+		kb.writePSW(v)
+		break
+	case 0777774:
+		kb.stacklimit = v
+		break
+	case 0777570:
+		kb.switchregister = v
+		break
+	default:
+		kb.unibus.Write16(a, v)
+	}
+}
+
+func (kb *KB11) SA(instr uint16) uint16 {
+	// reconstruct L00SSDD as L0000SS
+	instr = (instr & (1 << 15)) | ((instr >> 6) & 077)
+	return kb.DA(instr)
 }
 
 func (kb *KB11) DA(instr uint16) uint16 {
@@ -1025,9 +1095,9 @@ func (kb *KB11) DA(instr uint16) uint16 {
 func (kb *KB11) memread(l int, a uint16) uint16 {
 	if isReg(a) {
 		if l == 2 {
-			return R[a&7]
+			return kb.R[a&7]
 		} else {
-			return R[a&7] & 0xFF
+			return kb.R[a&7] & 0xFF
 		}
 	}
 	return kb.read(l, a)
@@ -1045,6 +1115,37 @@ func (kb *KB11) memwrite(l int, a, v uint16) {
 		return
 	}
 	kb.write(l, a, v)
+}
+
+// Set N & Z clearing V (C unchanged)
+func (kb *KB11) setNZ(l int, v uint16) {
+	kb.psw &= (0xFFF0 | FLAGC)
+	if v == 0 {
+		kb.psw |= FLAGZ
+	}
+	if v&msb(len) > 0 {
+		kb.psw |= FLAGN
+	}
+}
+
+// Set N, Z & V (C unchanged)
+func (kb *KB11) setNZV(l int, v uint16) {
+	kb.setNZ(len, v)
+	if v == mask(len) > 0 {
+		kb.psw |= FLAGV
+	}
+}
+
+// Set N, Z & C clearing V
+func (kb *KB11) setNZC(l int, v uint16) {
+	kb.psw &= 0xFFF0
+	kb.psw |= FLAGC
+	if v == 0 {
+		kb.psw |= FLAGZ
+	}
+	if v&msb(len) > 0 {
+		kb.psw |= FLAGN
+	}
 }
 
 func (kb *KB11) writePSW(psw uint16) {
@@ -1143,6 +1244,13 @@ func msb(l int) uint16 {
 		return 0x8000
 	}
 	return 0x00
+}
+
+func mask(l int) uint16 {
+	if l == 2 {
+		return 0x7fff
+	}
+	return 0x7f
 }
 
 func xor(a, b bool) bool  { return a != b }
