@@ -25,50 +25,50 @@ func (kt *KT11) decode(wr bool, a, mode uint16) addr18 {
 		return addr18(a)
 	}
 	i := a >> 13
-	if mode {
+	if mode > 0 {
 		i += 8
 	}
 
-	if wr && !pages[i].write() {
-		SR0 = (1 << 13) | 1
-		SR0 |= (a >> 12) &^ 1
+	if wr && !kt.pages[i].write() {
+		kt.SR0 = (1 << 13) | 1
+		kt.SR0 |= (a >> 12) &^ 1
 		if mode > 0 {
-			SR0 |= (1 << 5) | (1 << 6)
+			kt.SR0 |= (1 << 5) | (1 << 6)
 		}
 		// SR2 = cpu.PC;
 		fmt.Printf("mmu::decode write to read-only page %06o\n", a)
 		panic(trap{INTFAULT})
 	}
-	if !pages[i].read() {
-		SR0 = (1 << 15) | 1
-		SR0 |= (a >> 12) &^ 1
+	if !kt.pages[i].read() {
+		kt.SR0 = (1 << 15) | 1
+		kt.SR0 |= (a >> 12) &^ 1
 		if mode > 0 {
-			SR0 |= (1 << 5) | (1 << 6)
+			kt.SR0 |= (1 << 5) | (1 << 6)
 		}
 		// SR2 = cpu.PC;
-		printf("mmu::decode read from no-access page %06o\n", a)
-		trap(INTFAULT)
+		fmt.Printf("mmu::decode read from no-access page %06o\n", a)
+		panic(trap{INTFAULT})
 	}
 	block := (a >> 6) & 0177
 	disp := a & 077
-	if (pages[i].ed() && (block < pages[i].len())) || (!pages[i].ed() && (block > pages[i].len())) {
-		SR0 = (1 << 14) | 1
-		SR0 |= (a >> 12) &^ 1
-		if mode {
-			SR0 |= (1 << 5) | (1 << 6)
+	if (kt.pages[i].ed() && (block < kt.pages[i].len())) || (!kt.pages[i].ed() && (block > kt.pages[i].len())) {
+		kt.SR0 = (1 << 14) | 1
+		kt.SR0 |= (a >> 12) &^ 1
+		if mode > 0 {
+			kt.SR0 |= (1 << 5) | (1 << 6)
 		}
 		// SR2 = cpu.PC;
 		fmt.Printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n",
-			a, block, pages[i].len())
-		trap(INTFAULT)
+			a, block, kt.pages[i].len())
+		panic(trap{INTFAULT})
 	}
 	if wr {
-		pages[i].pdr |= 1 << 6
+		kt.pages[i].pdr |= 1 << 6
 	}
-	aa = addr18(pages[i].par & 07777)
-	aa += block
+	aa := addr18(kt.pages[i].par & 07777)
+	aa += addr18(block)
 	aa <<= 6
-	aa += disp
+	aa += addr18(disp)
 
 	//    printf("decode: slow %06o -> %06o\n", a, aa);
 

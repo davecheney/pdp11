@@ -21,6 +21,9 @@ type runCmd struct {
 func (r *runCmd) Run(ctx *kong.Context) error {
 	cpu := KB11{}
 	cpu.Reset()
-	cpu.R[7] = r.StartAddr
+	for i, v := range consecho {
+		cpu.unibus.Write16(02000+addr18(i*2), v)
+	}
+	cpu.R[7] = 0002002
 	return cpu.Run()
 }

@@ -583,7 +583,7 @@ func (kb *KB11) ROR(l int, instr uint16) {
 	if !(sval&max(l) > 0) {
 		kb.psw |= FLAGZ
 	}
-	if (sval&1 == 1) != (sval & (max(l) + 1)) > 0 {
+	if sval&1^sval&(max(l)+1) > 0 {
 		kb.psw |= FLAGV
 	}
 	sval >>= 1
@@ -743,7 +743,7 @@ func (kb *KB11) CMP(l int, instr uint16) {
 	if sval&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if ((val1 ^ val2) & msb(l)) && (!((val2 ^ sval) & msb(l))) {
+	if (val1^val2)&msb(l) > 0 && !(((val2 ^ sval) & msb(l)) > 0) {
 		kb.psw |= FLAGV
 	}
 	if val1 < val2 {
@@ -763,13 +763,13 @@ func (kb *KB11) BIC(l int, instr uint16) {
 	val1 := kb.memread(l, kb.SA(instr))
 	da := kb.DA(instr)
 	val2 := kb.memread(l, da)
-	uval := (max ^ val1) & val2
+	uval := (max(l) ^ val1) & val2
 	kb.memwrite(l, da, uval)
 	kb.psw &= 0xFFF1
 	if uval == 0 {
 		kb.psw |= FLAGZ
 	}
-	if uval & msb(l) {
+	if uval&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
 }
@@ -793,7 +793,7 @@ func (kb *KB11) ADD(instr uint16) {
 	if uval == 0 {
 		kb.psw |= FLAGN
 	}
-	if !((val1 ^ val2) & 0x8000) && ((val2 ^ uval) & 0x8000) {
+	if !((val1^val2)&0x8000 > 0) && ((val2^uval)&0x8000 > 0) {
 		kb.psw |= FLAGV
 	}
 	if (val1 + val2) >= 0xFFFF {
@@ -827,7 +827,7 @@ func (kb *KB11) MUL(instr uint16) {
 }
 
 func (kb *KB11) DIV(instr uint16) {
-	val1 := uint32(kb.R[(instr>>6)&7]<<16) | uint32(kb.R[((instr>>6)&7)|1])
+	val1 := uint32(kb.R[(instr>>6)&7])<<16 | uint32(kb.R[((instr>>6)&7)|1])
 	da := kb.DA(instr)
 	val2 := uint32(kb.memread(2, da))
 	kb.psw &= 0xFFF0
@@ -910,8 +910,8 @@ func (kb *KB11) ASHC(instr uint16) {
 			kb.psw |= FLAGC
 		}
 	}
-	kb.R[(instr>>6)&7] = (sval >> 16) & 0xFFFF
-	kb.R[((instr>>6)&7)|1] = sval & 0xFFFF
+	kb.R[(instr>>6)&7] = uint16(sval >> 16)
+	kb.R[((instr>>6)&7)|1] = uint16(sval)
 	if sval == 0 {
 		kb.psw |= FLAGZ
 	}
@@ -1002,7 +1002,7 @@ func (kb *KB11) read(l int, va uint16) uint16 {
 	if l == 2 {
 		return kb.read16(va)
 	}
-	if va & 1 {
+	if va&1 > 0 {
 		return kb.read16(va&^1) >> 8
 	}
 	return kb.read16(va&^1) & 0xFF
@@ -1010,13 +1010,13 @@ func (kb *KB11) read(l int, va uint16) uint16 {
 
 func (kb *KB11) write(l int, va, v uint16) {
 	if l == 2 {
-		write16(va, v)
+		kb.write16(va, v)
 		return
 	}
-	if va & 1 {
-		write16(va&^1, (read16(va&^1)&0xFF)|(v&0xFF)<<8)
+	if va&1 > 0 {
+		kb.write16(va&^1, (kb.read16(va&^1)&0xFF)|(v&0xFF)<<8)
 	} else {
-		write16(va, (read16(va)&0xFF00)|(v&0xFF))
+		kb.write16(va, (kb.read16(va)&0xFF00)|(v&0xFF))
 	}
 }
 
@@ -1039,13 +1039,10 @@ func (kb *KB11) write16(va, v uint16) {
 	switch a {
 	case 0777776:
 		kb.writePSW(v)
-		break
 	case 0777774:
 		kb.stacklimit = v
-		break
 	case 0777570:
 		kb.switchregister = v
-		break
 	default:
 		kb.unibus.Write16(a, v)
 	}
@@ -1064,7 +1061,7 @@ func (kb *KB11) DA(instr uint16) uint16 {
 	if (v & 070) == 000 {
 		return 0170000 | (v & 7)
 	}
-	if ((v & 7) >= 6) || (v & 010) {
+	if ((v & 7) >= 6) || (v&010) > 0 {
 		l = 2
 	}
 	addr := uint16(0)
@@ -1072,21 +1069,17 @@ func (kb *KB11) DA(instr uint16) uint16 {
 	case 000:
 		v &= 7
 		addr = kb.R[v&7]
-		break
 	case 020:
 		addr = kb.R[v&7]
 		kb.R[v&7] += l
-		break
 	case 040:
 		kb.R[v&7] -= l
 		addr = kb.R[v&7]
-		break
 	case 060:
 		addr = kb.fetch16()
 		addr += kb.R[v&7]
-		break
 	}
-	if v & 010 {
+	if v&010 > 0 {
 		addr = kb.read16(addr)
 	}
 	return addr
@@ -1123,15 +1116,15 @@ func (kb *KB11) setNZ(l int, v uint16) {
 	if v == 0 {
 		kb.psw |= FLAGZ
 	}
-	if v&msb(len) > 0 {
+	if v&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
 }
 
 // Set N, Z & V (C unchanged)
 func (kb *KB11) setNZV(l int, v uint16) {
-	kb.setNZ(len, v)
-	if v == mask(len) > 0 {
+	kb.setNZ(l, v)
+	if v == mask(l) {
 		kb.psw |= FLAGV
 	}
 }
@@ -1143,7 +1136,7 @@ func (kb *KB11) setNZC(l int, v uint16) {
 	if v == 0 {
 		kb.psw |= FLAGZ
 	}
-	if v&msb(len) > 0 {
+	if v&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
 }
@@ -1161,6 +1154,8 @@ func (kb *KB11) currentmode() uint16 { return kb.psw >> 14 }
 // previousmode returns the previous cpu mode.
 // 0: kernel, 1: supervisor, 2: illegal, 3: user
 func (kb *KB11) previousmode() uint16 { return (kb.psw >> 12) & 3 }
+
+func (kb *KB11) kernelmode() { kb.writePSW((kb.psw & 0007777) | (kb.currentmode() << 12)) }
 
 // priority returns the current CPU interrupt priority.
 func (kb *KB11) priority() uint16 { return (kb.psw >> 5) & 7 }
@@ -1192,7 +1187,7 @@ func (kb *KB11) printstate() {
 		case 3:
 			return "U"
 		default:
-			"K"
+			return "K"
 		}
 	}
 
@@ -1226,9 +1221,9 @@ func (kb *KB11) printstate() {
 
 	fmt.Printf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\n",
 		kb.R[0], kb.R[1], kb.R[2], kb.R[3], kb.R[4], kb.R[5], kb.R[6], kb.R[7])
-	fmt.Printf("[%s%s%s%s%s%s", prev, curr(), n(), z(), v(), c())
-	fmt.Printf("]  instr %06o: %06o\t ", kb.pc, read16(kb.pc))
-	kb.disasm(PC)
+	fmt.Printf("[%s%s%s%s%s%s", prev(), curr(), n(), z(), v(), c())
+	fmt.Printf("]  instr %06o: %06o\t ", kb.pc, kb.read16(kb.pc))
+	kb.disasm(kb.pc)
 	fmt.Println()
 }
 
@@ -1255,5 +1250,3 @@ func mask(l int) uint16 {
 
 func xor(a, b bool) bool  { return a != b }
 func isReg(a uint16) bool { return (a & 0177770) == 0170000 }
-
-func (kb *KB11) disasm(pc uint16) {}
