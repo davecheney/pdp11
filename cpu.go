@@ -200,154 +200,152 @@ func (kb *KB11) step() {
 		kb.BIT(2, instr)
 		return
 	case 4: // BIC 04SSDD
-		BIC < 2 > (instr)
+		kb.BIC(2, instr)
 		return
 	case 5: // BIS 05SSDD
-		BIS < 2 > (instr)
+		kb.BIS(2, instr)
 		return
 	case 6: // ADD 06SSDD
-		ADD(instr)
+		kb.ADD(instr)
 		return
 	case 7: // 07xRSS instructions
 		switch (instr >> 9) & 7 { // 07xRSS
 		case 0: // MUL 070RSS
-			MUL(instr)
+			kb.MUL(instr)
 			return
 		case 1: // DIV 071RSS
-			DIV(instr)
+			kb.DIV(instr)
 			return
 		case 2: // ASH 072RSS
-			ASH(instr)
+			kb.ASH(instr)
 			return
 		case 3: // ASHC 073RSS
-			ASHC(instr)
+			kb.ASHC(instr)
 			return
 		case 4: // XOR 074RSS
-			XOR(instr)
+			kb.XOR(instr)
 			return
 		case 7: // SOB 077Rnn
-			SOB(instr)
+			kb.SOB(instr)
 			return
 		default: // We don't know this 07xRSS instruction
-			printf("unknown 07xRSS instruction\n")
-			printstate()
-			trapat(INTINVAL)
-			return
+			fmt.Printf("unknown 07xRSS instruction\n")
+			kb.printstate()
+			panic(trap{INTINVAL})
 		}
 	case 8: // 10xxxx instructions
 		switch (instr >> 8) & 0xf { // 10xxxx 8 bit instructions first
 		case 0: // BPL 1000 offset
-			if !N() {
-				branch(instr & 0xFF)
+			if !kb.n() {
+				kb.branch(instr & 0xFF)
 			}
 			return
 		case 1: // BMI 1004 offset
-			if N() {
-				branch(instr & 0xFF)
+			if kb.n() {
+				kb.branch(instr & 0xFF)
 			}
 			return
 		case 2: // BHI 1010 offset
-			if (!C()) && (!Z()) {
-				branch(instr & 0xFF)
+			if (!kb.c()) && (!kb.z()) {
+				kb.branch(instr & 0xFF)
 			}
 			return
 		case 3: // BLOS 1014 offset
-			if C() || Z() {
-				branch(instr & 0xFF)
+			if kb.c() || kb.z() {
+				kb.branch(instr & 0xFF)
 			}
 			return
 		case 4: // BVC 1020 offset
-			if !V() {
-				branch(instr & 0xFF)
+			if !kb.v() {
+				kb.branch(instr & 0xFF)
 			}
 			return
 		case 5: // BVS 1024 offset
-			if V() {
-				branch(instr & 0xFF)
+			if kb.v() {
+				kb.branch(instr & 0xFF)
 			}
 			return
 		case 6: // BCC 1030 offset
-			if !C() {
-				branch(instr & 0xFF)
+			if !kb.c() {
+				kb.branch(instr & 0xFF)
 			}
 			return
 		case 7: // BCS 1034 offset
-			if C() {
-				branch(instr & 0xFF)
+			if kb.c() {
+				kb.branch(instr & 0xFF)
 			}
 			return
 		case 8: // EMT 1040 operand
-			trapat(030) // Trap 30 - EMT instruction
+			kb.trapat(030) // Trap 30 - EMT instruction
 			return
 		case 9: // TRAP 1044 operand
-			trapat(034) // Trap 34 - TRAP instruction
+			kb.trapat(034) // Trap 34 - TRAP instruction
 			return
 		default: // Remaining 10xxxx instructions where xxxx >= 05000
 			switch (instr >> 6) & 077 { // 10xxDD group
 			case 050: // CLRB 1050DD
-				CLR < 1 > (instr)
+				kb.CLR(1, instr)
 				return
 			case 051: // COMB 1051DD
-				COM < 1 > (instr)
+				kb.COM(1, instr)
 				return
 			case 052: // INCB 1052DD
-				INC < 1 > (instr)
+				kb.INC(1, instr)
 				return
 			case 053: // DECB 1053DD
-				_DEC < 1 > (instr)
+				kb.DEC(1, instr)
 				return
 			case 054: // NEGB 1054DD
-				NEG < 1 > (instr)
+				kb.NEG(1, instr)
 				return
 			case 055: // ADCB 01055DD
-				_ADC < 1 > (instr)
+				kb.ADC(1, instr)
 				return
 			case 056: // SBCB 01056DD
-				SBC < 1 > (instr)
+				kb.SBC(1, instr)
 				return
 			case 057: // TSTB 1057DD
-				TST < 1 > (instr)
+				kb.TST(1, instr)
 				return
 			case 060: // RORB 1060DD
-				ROR < 1 > (instr)
+				kb.ROR(1, instr)
 				return
 			case 061: // ROLB 1061DD
-				ROL < 1 > (instr)
+				kb.ROL(1, instr)
 				return
 			case 062: // ASRB 1062DD
-				ASR < 1 > (instr)
+				kb.ASR(1, instr)
 				return
 			case 063: // ASLB 1063DD
-				ASL < 1 > (instr)
+				kb.ASL(1, instr)
 				return
 			// case 0o64: // MTPS 1064SS
 			// case 0o65: // MFPD 1065DD
 			// case 0o66: // MTPD 1066DD
 			// case 0o67: // MTFS 1064SS
 			default: // We don't know this 0o10xxDD instruction
-				printf("unknown 0o10xxDD instruction\n")
-				printstate()
-				trapat(INTINVAL)
-				return
+				fmt.Printf("unknown 0o10xxDD instruction\n")
+				kb.printstate()
+				panic(trap{INTINVAL})
 			}
 		}
 	case 9: // MOVB 11SSDD
-		MOV < 1 > (instr)
+		kb.MOV(1, instr)
 		return
 	case 10: // CMPB 12SSDD
-		CMP < 1 > (instr)
+		kb.CMP(1, instr)
 		return
 	case 11: // BITB 13SSDD
-		BIT < 1 > (instr)
+		kb.BIT(1, instr)
 		return
 	case 12: // BICB 14SSDD
-		BIC < 1 > (instr)
+		kb.BIC(1, instr)
 		return
 	case 13: // BISB 15SSDD
-		BIS < 1 > (instr)
+		kb.BIS(1, instr)
 		return
 	case 14: // SUB 16SSDD
-		SUB(instr)
+		kb.SUB(instr)
 		return
 	case 15:
 		if instr == 0170011 {
@@ -355,9 +353,9 @@ func (kb *KB11) step() {
 			return
 		}
 	default: // 15  17xxxx FPP instructions
-		printf("invalid 17xxxx FPP instruction\n")
-		printstate()
-		trapat(INTINVAL)
+		fmt.Printf("invalid 17xxxx FPP instruction\n")
+		kb.printstate()
+		panic(trap{INTINVAL})
 	}
 }
 
@@ -372,7 +370,7 @@ func (kb *KB11) RESET() {
 // RTI 000004, RTT 000006
 func (kb *KB11) RTT() {
 	kb.R[7] = kb.pop()
-	psw := pop()
+	psw := kb.pop()
 	psw &= 0xf8ff
 	if kb.currentmode() > 0 { // user / super restrictions
 		// keep SPL and allow lower only for modes and register set
@@ -759,6 +757,202 @@ func (kb *KB11) BIT(l int, instr uint16) {
 	setNZ(l, result)
 }
 
+func (kb *KB11) BIC(l int, instr uint16) {
+	val1 := kb.memread(l, kb.SA(instr))
+	da := kb.DA(instr)
+	val2 = kb.memread(l, da)
+	uval := (max ^ val1) & val2
+	kb.memwrite(l, da, uval)
+	kb.psw &= 0xFFF1
+	if uval == 0 {
+		kb.psw |= FLAGZ
+	}
+	if uval & msb(l) {
+		kb.psw |= FLAGN
+	}
+}
+
+func (kb *KB11) BIS(l int, instr uint16) {
+	val1 := kb.memread(l, kb.SA(instr))
+	da := kb.DA(instr)
+	val2 := kb.memread(l, da)
+	uval := val1 | val2
+	kb.memwrite(l, da, uval)
+	kb.setNZ(l, uval)
+}
+
+func (kb *KB11) ADD(instr uint16) {
+	val1 := kb.memread(2, kb.SA(instr))
+	da := kb.DA(instr)
+	val2 := kb.memread(2, da)
+	uval := val1 + val2
+	kb.memwrite(da, uval)
+	PSW &= 0xFFF0
+	setZ(uval == 0)
+	if uval & 0x8000 {
+		PSW |= FLAGN
+	}
+	if !((val1 ^ val2) & 0x8000) && ((val2 ^ uval) & 0x8000) {
+		PSW |= FLAGV
+	}
+	if (val1 + val2) >= 0xFFFF {
+		PSW |= FLAGC
+	}
+}
+
+func (kb *KB11) MUL(instr uint16) {
+	val1 := kb.R[(instr>>6)&7]
+	if val1 & 0x8000 {
+		val1 = -((0xFFFF ^ val1) + 1)
+	}
+	da := kb.DA(instr)
+	val2 := kb.memread(2, da)
+	if val2 & 0x8000 {
+		val2 = -((0xFFFF ^ val2) + 1)
+	}
+	sval := uint32(val1) * uint32(val2)
+	kb.R[(instr>>6)&7] = uint16(sval >> 16)
+	kb.R[((instr>>6)&7)|1] = uint16(sval & 0xFFFF)
+	PSW &= 0xFFF0
+	if sval & 0x80000000 {
+		PSW |= FLAGN
+	}
+	setZ((sval & 0xFFFFFFFF) == 0)
+	if (sval < (1 << 15)) || (sval >= ((1 << 15) - 1)) {
+		PSW |= FLAGC
+	}
+}
+
+func (kb *KB11) DIV(instr uint16) {
+	val1 := uint32(kb.R[(instr>>6)&7]<<16) | uint32(kb.R[((instr>>6)&7)|1])
+	da := kb.DA(instr)
+	val2 := kb.memread(2, da)
+	PSW &= 0xFFF0
+	if val2 == 0 {
+		PSW |= FLAGC
+		return
+	}
+	if (val1 / val2) >= 0x10000 {
+		PSW |= FLAGV
+		return
+	}
+	R[(instr>>6)&7] = (val1 / val2) & 0xFFFF
+	R[((instr>>6)&7)|1] = (val1 % val2) & 0xFFFF
+	setZ(R[(instr>>6)&7] == 0)
+	if R[(instr>>6)&7] & 0100000 {
+		PSW |= FLAGN
+	}
+	if val1 == 0 {
+		PSW |= FLAGV
+	}
+}
+
+func (kb *KB11) ASH(instr uint16) {
+	val1 := kb.R[(instr>>6)&7]
+	da := kb.DA(instr)
+	val2 := kb.memread(2, da) & 077
+	PSW &= 0xFFF0
+	var sval int32
+	if val2 & 040 {
+		val2 = (077 ^ val2) + 1
+		if val1 & 0100000 {
+			sval = 0xFFFF ^ (0xFFFF >> val2)
+			sval |= val1 >> val2
+		} else {
+			sval = val1 >> val2
+		}
+		if val1 & (1 << (val2 - 1)) {
+			PSW |= FLAGC
+		}
+	} else {
+		sval = (val1 << val2) & 0xFFFF
+		if val1 & (1 << (16 - val2)) {
+			PSW |= FLAGC
+		}
+	}
+	R[(instr>>6)&7] = sval
+	setZ(sval == 0)
+	if sval & 0100000 {
+		PSW |= FLAGN
+	}
+	if (sval & 0100000) ^ (val1 & 0100000) {
+		PSW |= FLAGV
+	}
+}
+
+func (kb *KB11) ASHC(instr uint16) {
+	val1 := uint32(kb.R[(instr>>6)&7]<<16) | uint32(kb.R[((instr>>6)&7)|1])
+	da := kb.DA(instr)
+	val2 := memread(2, da) & 077
+	PSW &= 0xFFF0
+	var sval int32
+	if val2 & 040 {
+		val2 = (077 ^ val2) + 1
+		if val1 & 0x80000000 {
+			sval = 0xFFFFFFFF ^ (0xFFFFFFFF >> val2)
+			sval |= val1 >> val2
+		} else {
+			sval = val1 >> val2
+		}
+		if val1 & (1 << (val2 - 1)) {
+			PSW |= FLAGC
+		}
+	} else {
+		sval = (val1 << val2) & 0xFFFFFFFF
+		if val1 & (1 << (32 - val2)) {
+			PSW |= FLAGC
+		}
+	}
+	R[(instr>>6)&7] = (sval >> 16) & 0xFFFF
+	R[((instr>>6)&7)|1] = sval & 0xFFFF
+	setZ(sval == 0)
+	if sval & 0x80000000 {
+		PSW |= FLAGN
+	}
+	if (sval & 0x80000000) ^ (val1 & 0x80000000) {
+		PSW |= FLAGV
+	}
+}
+
+// XOR 064RDD
+func (kb *KB11) XOR(instr uint16) {
+	reg := kb.R[(instr>>6)&7]
+	da := kb.DA(instr)
+	dst := kb.memread(2, da)
+	dst = reg ^ dst
+	kb.memwrite(2, da, dst)
+	setNZ(2, dst)
+}
+
+// SOB 077RNN
+func (kb *KB11) SOB(instr uint16) {
+	kb.R[(instr>>6)&7]--
+	if kb.R[(instr>>6)&7] {
+		kb.R[7] -= (instr & 077) << 1
+	}
+}
+
+// SUB 16SSDD
+func (kb *KB11) SUB(instr uint16) {
+	// mask off top bit of instr so SA computes L=2
+	val1 := kb.memread(2, kb.SA(instr&0077777))
+	da := kb.DA(instr)
+	val2 := kb.memread(2, da)
+	uval := (val2 - val1)
+	PSW &= 0xFFF0
+	kb.memwrite(2, da, uval)
+	setZ(uval == 0)
+	if uval & 0x8000 {
+		PSW |= FLAGN
+	}
+	if ((val1 ^ val2) & 0x8000) && (!((val2 ^ uval) & 0x8000)) {
+		PSW |= FLAGV
+	}
+	if val1 > val2 {
+		PSW |= FLAGC
+	}
+}
+
 func (kb *KB11) trapat(vec uint16) {
 	if vec&1 > 0 {
 		fmt.Printf("Thou darst calling trapat() with an odd vector number?\n")
@@ -890,5 +1084,7 @@ func msb(l int) uint16 {
 	}
 	return 0x00
 }
+
+func xor(a, b bool) bool { return a != b }
 
 func (kb *KB11) disasm(pc uint16) {}
