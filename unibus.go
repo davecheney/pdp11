@@ -35,3 +35,9 @@ func (u *UNIBUS) Write16(addr addr18, v uint16) {
 		panic(trap{INTBUS})
 	}
 }
+
+func (u *UNIBUS) reset() {
+	kb.cons.clearterminal()
+	kb.rk11.reset()
+	kb.kw11.write16(0777546, 0x00) // disable line clock INTR
+}

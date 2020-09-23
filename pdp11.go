@@ -19,9 +19,8 @@ type runCmd struct {
 }
 
 func (r *runCmd) Run(ctx *kong.Context) error {
-	cpu := KB11{
-		PC: r.StartAddr,
-	}
+	cpu := KB11{}
 	cpu.Reset()
+	cpu.R[7] = r.StartAddr
 	return cpu.Run()
 }
