@@ -20,8 +20,12 @@ type runCmd struct {
 
 func (r *runCmd) Run(ctx *kong.Context) error {
 	cpu := KB11{}
+	cpu.unibus.rk11.unibus = &cpu.unibus
 	cpu.Reset()
-	cpu.Load(0002000, consecho[:]...)
+	if err := cpu.unibus.rk11.Mount(0, r.RK0); err != nil {
+		return err
+	}
+	cpu.Load(0002000, bootrom[:]...)
 	cpu.R[7] = 0002000
 	return cpu.Run()
 }
