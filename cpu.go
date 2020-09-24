@@ -954,17 +954,14 @@ func (kb *KB11) SUB(instr uint16) {
 	src := kb.memread(2, kb.SA(instr&0077777))
 	da := kb.DA(instr)
 	dst := kb.memread(2, da)
-	result := dst - src
+	result := (dst + ^src) + 1
 	kb.memwrite(2, da, result)
 	kb.psw &= 0xFFF0
 	kb.setNZ(2, result)
 	if ((src^dst)&0x8000 > 0) && (!((dst^result)&0x8000 > 0)) {
 		kb.psw |= FLAGV
 	}
-	if (src&0x8000 > 0) && (dst&0x8000 > 0) {
-		kb.psw |= FLAGC
-	}
-	if src > dst {
+	if dst+(^src)+1 == 0xffff {
 		kb.psw |= FLAGC
 	}
 }
