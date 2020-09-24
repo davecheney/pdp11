@@ -24,6 +24,7 @@ func (kb *KB11) Reset() {
 func (kb *KB11) Run() error {
 	for {
 		kb.step()
+		kb.unibus.rk11.step()
 	}
 	return nil
 }
@@ -39,7 +40,7 @@ func (kb *KB11) step() {
 	kb.pc = kb.R[7]
 	instr := kb.fetch16()
 
-	// kb.printstate()
+	kb.printstate()
 
 	switch instr >> 12 { // xxSSDD Mostly double operand instructions
 	case 0: // 00xxxx mixed group
@@ -1004,10 +1005,12 @@ func (kb *KB11) read(l int, va uint16) uint16 {
 	if l == 2 {
 		return kb.read16(va)
 	}
-	if va&1 > 0 {
+	switch va & 1 {
+	case 1:
 		return kb.read16(va&^1) >> 8
+	default:
+		return kb.read16(va&^1) & 0xFF
 	}
-	return kb.read16(va&^1) & 0xFF
 }
 
 func (kb *KB11) write(l int, va, v uint16) {
@@ -1066,7 +1069,7 @@ func (kb *KB11) DA(instr uint16) uint16 {
 	if ((v & 7) >= 6) || (v&010) > 0 {
 		l = 2
 	}
-	addr := uint16(0)
+	var addr uint16
 	switch v & 060 {
 	case 000:
 		v &= 7

@@ -75,7 +75,7 @@ func (kt *KT11) decode(wr bool, a, mode uint16) addr18 {
 	return aa
 }
 
-func (kt *KT11) Read16(a addr18) uint16 {
+func (kt *KT11) read16(a addr18) uint16 {
 	if (a >= 0772300) && (a < 0772320) {
 		return kt.pages[((a & 017) >> 1)].pdr
 	}
@@ -91,7 +91,8 @@ func (kt *KT11) Read16(a addr18) uint16 {
 	fmt.Printf("mmu::read16 invalid read from %06o\n", a)
 	panic(trap{INTBUS})
 }
-func (kt *KT11) Write16(a addr18, v uint16) {
+
+func (kt *KT11) write16(a addr18, v uint16) {
 	i := (a & 017) >> 1
 	if (a >= 0772300) && (a < 0772320) {
 		kt.pages[i].pdr = v

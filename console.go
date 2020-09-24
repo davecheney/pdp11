@@ -1,8 +1,4 @@
-// +build none
-
 package main
-
-package pdp11
 
 import (
 	"fmt"
@@ -10,24 +6,18 @@ import (
 )
 
 type KL11 struct {
-	TKS, TKB, TPS, TPB int
-
-	Input chan uint8
-	count uint8 // step delay
-	ready bool
-
-	unibus *unibus
+	rcsr, rbuf, xcsr, xbuf uint16
+	count                  uint8
 }
 
 func (kl *KL11) clearterminal() {
-	kl.TKS = 0
-	kl.TPS = 1 << 7
-	kl.TKB = 0
-	kl.TPB = 0
-	kl.ready = true
+	kl.rcsr = 0
+	kl.xcsr = 0x80
+	kl.rbuf = 0
+	kl.xbuf = 0
 }
 
-func (kl *KL11) writeterminal(char int) {
+func (kl *KL11) writeterminal(char uint16) {
 	var outb [1]byte
 	switch char {
 	case 13:
@@ -38,89 +28,63 @@ func (kl *KL11) writeterminal(char int) {
 	}
 }
 
-func (kl *KL11) addchar(char int) {
-	switch char {
-	case 42:
-		kl.TKB = 4
-	case 19:
-		kl.TKB = 034
-	case '\n':
-		kl.TKB = '\r'
-	default:
-		kl.TKB = char
-	}
-	kl.TKS |= 0x80
-	kl.ready = false
-	if kl.TKS&(1<<6) != 0 {
-		kl.cpu.interrupt(intTTYIN, 4)
-	}
-}
-
-func (c *Console) getchar() int {
-	if c.TKS&0x80 == 0x80 {
-		c.TKS &= 0xff7e
-		c.ready = true
-		return c.TKB
-	}
-	return 0
-}
-
-func (c *Console) Step() {
-	if c.ready {
-		select {
-		case v, ok := <-c.Input:
-			if ok {
-				c.addchar(int(v))
-			}
-		default:
-		}
-	}
-	c.count++
-	if c.count%32 != 0 {
-		return
-	}
-	if c.TPS&0x80 == 0 {
-		c.writeterminal(c.TPB & 0x7f)
-		c.TPS |= 0x80
-		if c.TPS&(1<<6) != 0 {
-			c.unibus.cpu.interrupt(intTTYOUT, 4)
+func (kl *KL11) addchar(c uint16) {
+	if (kl.rcsr & 0x80) > 0 {
+		// unit not busy
+		kl.rbuf = c
+		kl.rcsr |= 0x80
+		if kl.rcsr&0x40 > 0 {
+			panic(interrupt{INTTTYIN, 4})
 		}
 	}
 }
 
-func (c *Console) consread16(a uint18) int {
-	switch a {
-	case 0777560:
-		return c.TKS
-	case 0777562:
-		return c.getchar()
-	case 0777564:
-		return c.TPS
-	case 0777566:
+func (kl *KL11) read16(a addr18) uint16 {
+	switch a & 06 {
+	case 00:
+		return kl.rcsr
+	case 02:
+		if kl.rcsr&0x80 > 0 {
+			kl.rcsr &= 0xff7e
+			return kl.rbuf
+		}
+		return 0
+	case 04:
+		return kl.xcsr
+	case 06:
 		return 0
 	default:
-		panic(fmt.Sprintf("read from invalid address %06o", a))
+		fmt.Printf("KL11: read from invalid address %06o\n", a)
+		panic(trap{INTBUS})
 	}
 }
 
-func (c *Console) conswrite16(a uint18, v int) {
-	switch a {
-	case 0777560:
-		if v&(1<<6) != 0 {
-			c.TKS |= 1 << 6
+func (kl *KL11) write16(a addr18, v uint16) {
+	switch a & 06 {
+	case 00:
+		if v&(1<<6) > 0 {
+			kl.rcsr |= 1 << 6
 		} else {
-			c.TKS &= ^(1 << 6)
+			kl.rcsr &= ^uint16(1 << 6)
 		}
-	case 0777564:
-		if v&(1<<6) != 0 {
-			c.TPS |= 1 << 6
+	case 04:
+		if v&(1<<6) > 0 {
+			kl.xcsr |= 1 << 6
 		} else {
-			c.TPS &= ^(1 << 6)
+			kl.xcsr &= ^uint16(1 << 6)
 		}
-	case 0777566:
-		c.TPB = v & 0xff
-		c.TPS &= 0xff7f
+	case 06:
+		kl.xbuf = v & 0x7f
+		kl.xcsr &= 0xff7f
+		if kl.xcsr&0x80 == 0 {
+			kl.writeterminal(kl.xbuf & 0x7f)
+			kl.xcsr |= 0x80
+			if kl.xcsr&(1<<6) > 0 {
+				panic(interrupt{INTTTYOUT, 4})
+			}
+		}
 	default:
-		panic(fmt.Sprintf("write to invalid address %06o", a))
+		fmt.Printf("KL11: write to invalid address %06o\n", a)
+		panic(trap{INTBUS})
 	}
 }

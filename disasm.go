@@ -163,7 +163,6 @@ func (kb *KB11) disasm(a uint16) {
 	case DD:
 		fmt.Printf(" ")
 		kb.disasmaddr(d, a)
-		break
 	case RR | O:
 		fmt.Printf(" %s,", rs[(ins&0700)>>6])
 		o &= 077
@@ -174,7 +173,6 @@ func (kb *KB11) disasm(a uint16) {
 		} else {
 			fmt.Printf(" +%03o", (2 * o))
 		}
-		break
 	case RR | DD:
 		fmt.Printf(" %s, ", rs[(ins&0700)>>6])
 		kb.disasmaddr(d, a)

@@ -68,18 +68,20 @@ func (rk *RK11) read16(a addr18) uint16 {
 }
 
 func (rk *RK11) rknotready() {
+	fmt.Println("rk11: not ready")
 	rk.rkds &= ^uint16(1 << 6)
 	rk.rkcs &= ^uint16(1 << 7)
 }
 
 func (rk *RK11) rkready() {
-	rk.rkds |= 1 << 6
-	rk.rkcs |= 1 << 7
+	fmt.Println("rk11: ready")
+	rk.rkds |= 1<<6 
+	rk.rkcs |= 1<<7
 	rk.rkcs &= ^uint16(1) // no go
 }
 
 func (rk *RK11) step() {
-	if (rk.rkcs & 01) == 0 {
+	if (rk.rkcs & 1) == 0 {
 		// no GO bit
 		return
 	}
@@ -106,6 +108,7 @@ func (rk *RK11) step() {
 		rk.readwrite()
 	case 6: // Drive Reset - falls through to be finished as a seek
 		rk.rker = 0
+		fallthrough
 	case 4: // Seek (and drive reset) - complete immediately
 		fmt.Printf("rk11: seek: cylinder: %03o sector: %03o\n", rk.cylinder, rk.sector)
 		rk.seek()
