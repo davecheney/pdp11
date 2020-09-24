@@ -28,11 +28,18 @@ func (kb *KB11) Run() error {
 	return nil
 }
 
+// Load loads words into memory starting at offset bypassing the mmu.
+func (kb *KB11) Load(offset addr18, words ...uint16) {
+	for i, w := range words {
+		kb.unibus.write16(offset+addr18(i*2), w)
+	}
+}
+
 func (kb *KB11) step() {
 	kb.pc = kb.R[7]
 	instr := kb.fetch16()
 
-	kb.printstate()
+	// kb.printstate()
 
 	switch instr >> 12 { // xxSSDD Mostly double operand instructions
 	case 0: // 00xxxx mixed group
@@ -675,7 +682,7 @@ func (kb *KB11) MFPI(instr uint16) {
 		kb.printstate()
 		os.Exit(1)
 	} else {
-		uval = kb.unibus.Read16(kb.mmu.decode(false, da, kb.previousmode()))
+		uval = kb.unibus.read16(kb.mmu.decode(false, da, kb.previousmode()))
 	}
 	kb.push(uval)
 	kb.setNZ(2, uval)
@@ -695,7 +702,7 @@ func (kb *KB11) MTPI(instr uint16) {
 		kb.printstate()
 		os.Exit(1)
 	} else {
-		kb.unibus.Write16(kb.mmu.decode(true, da, kb.previousmode()), uval)
+		kb.unibus.write16(kb.mmu.decode(true, da, kb.previousmode()), uval)
 	}
 	kb.setNZ(2, uval)
 }
@@ -783,22 +790,22 @@ func (kb *KB11) BIS(l int, instr uint16) {
 	kb.setNZ(l, uval)
 }
 
+// ADD 06SSDD
 func (kb *KB11) ADD(instr uint16) {
-	val1 := kb.memread(2, kb.SA(instr))
+	src := kb.memread(2, kb.SA(instr))
 	da := kb.DA(instr)
-	val2 := kb.memread(2, da)
-	uval := val1 + val2
-	kb.memwrite(2, da, uval)
+	dst := kb.memread(2, da)
+	sum := src + dst
+	kb.memwrite(2, da, sum)
 	kb.psw &= 0xFFF0
-	if uval == 0 {
-		kb.psw |= FLAGN
-	}
-	if !((val1^val2)&0x8000 > 0) && ((val2^uval)&0x8000 > 0) {
+	kb.setNZ(2, sum)
+	if (!((src^dst)&0x8000 > 0)) && ((dst^sum)&0x8000 > 0) {
 		kb.psw |= FLAGV
 	}
-	if (val1 + val2) >= 0xFFFF {
+	if (src&0x8000 > 0) && (dst&0x8000 > 0) {
 		kb.psw |= FLAGC
 	}
+
 }
 
 func (kb *KB11) MUL(instr uint16) {
@@ -888,7 +895,7 @@ func (kb *KB11) ASH(instr uint16) {
 }
 
 func (kb *KB11) ASHC(instr uint16) {
-	val1 := uint32(kb.R[(instr>>6)&7]<<16) | uint32(kb.R[((instr>>6)&7)|1])
+	val1 := uint32(kb.R[(instr>>6)&7])<<16 | uint32(kb.R[((instr>>6)&7)|1])
 	da := kb.DA(instr)
 	val2 := kb.memread(2, da) & 077
 	kb.psw &= 0xFFF0
@@ -944,22 +951,20 @@ func (kb *KB11) SOB(instr uint16) {
 // SUB 16SSDD
 func (kb *KB11) SUB(instr uint16) {
 	// mask off top bit of instr so SA computes L=2
-	val1 := kb.memread(2, kb.SA(instr&0077777))
+	src := kb.memread(2, kb.SA(instr&0077777))
 	da := kb.DA(instr)
-	val2 := kb.memread(2, da)
-	uval := (val2 - val1)
-	kb.memwrite(2, da, uval)
+	dst := kb.memread(2, da)
+	result := dst - src
+	kb.memwrite(2, da, result)
 	kb.psw &= 0xFFF0
-	if uval == 0 {
-		kb.psw |= FLAGZ
-	}
-	if uval&0x8000 > 0 {
-		kb.psw |= FLAGN
-	}
-	if ((val1^val2)&0x8000 > 0) && (!((val2^uval)&0x8000 > 0)) {
+	kb.setNZ(2, result)
+	if ((src^dst)&0x8000 > 0) && (!((dst^result)&0x8000 > 0)) {
 		kb.psw |= FLAGV
 	}
-	if val1 > val2 {
+	if (src&0x8000 > 0) && (dst&0x8000 > 0) {
+		kb.psw |= FLAGC
+	}
+	if src > dst {
 		kb.psw |= FLAGC
 	}
 }
@@ -1030,7 +1035,7 @@ func (kb *KB11) read16(va uint16) uint16 {
 	case 0777570:
 		return kb.switchregister
 	default:
-		return kb.unibus.Read16(a)
+		return kb.unibus.read16(a)
 	}
 }
 
@@ -1044,7 +1049,7 @@ func (kb *KB11) write16(va, v uint16) {
 	case 0777570:
 		kb.switchregister = v
 	default:
-		kb.unibus.Write16(a, v)
+		kb.unibus.write16(a, v)
 	}
 }
 

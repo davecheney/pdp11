@@ -8,12 +8,12 @@ type UNIBUS struct {
 
 	// 128 KW of core memory minus 4 KW of io page.
 	// [000000, 177777)
-	core [((256 << 10) - (8 << 10)) >> 1]uint16
+	core [(128 << 10) - (4 << 10)]uint16
 }
 
-// Read16 reads addr from the UNIBUS.
-func (u *UNIBUS) Read16(addr addr18) uint16 {
-	if int(addr) < len(u.core)<<1 {
+// read16 reads addr from the UNIBUS.
+func (u *UNIBUS) read16(addr addr18) uint16 {
+	if int(addr>>1) < len(u.core) {
 		return u.core[addr>>1]
 	}
 	switch addr {
@@ -23,9 +23,9 @@ func (u *UNIBUS) Read16(addr addr18) uint16 {
 	}
 }
 
-// Write16 writes v to addr on the UNIBUS.
-func (u *UNIBUS) Write16(addr addr18, v uint16) {
-	if int(addr) < len(u.core)<<1 {
+// write16 writes v to addr on the UNIBUS.
+func (u *UNIBUS) write16(addr addr18, v uint16) {
+	if int(addr>>1) < len(u.core) {
 		u.core[addr>>1] = v
 		return
 	}
