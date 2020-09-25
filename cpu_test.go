@@ -253,6 +253,38 @@ func TestRORB(t *testing.T) {
 	}
 }
 
+func TestSXT(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0006700) // SXT R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGN)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		is.Equal(cpu.R[0], uint16(0))
+		is.Equal(cpu.n(), false)
+		is.Equal(cpu.z(), true)
+		is.Equal(cpu.v(), false)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw |= uint16(FLAGN)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		is.Equal(cpu.R[0], uint16(0xffff))
+		is.Equal(cpu.n(), true)
+		is.Equal(cpu.z(), false)
+		is.Equal(cpu.v(), false)
+	}
+}
+
 func TestTST(t *testing.T) {
 	is := is.New(t)
 
