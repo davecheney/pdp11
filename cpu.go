@@ -773,13 +773,14 @@ func (kb *KB11) BIC(l int, instr uint16) {
 	kb.setNZ(l, dst)
 }
 
+// BIS 05SSDD, BISB 15SSDD
 func (kb *KB11) BIS(l int, instr uint16) {
-	val1 := kb.memread(l, kb.SA(instr))
+	src := kb.memread(l, kb.SA(instr))
 	da := kb.DA(instr)
-	val2 := kb.memread(l, da)
-	uval := val1 | val2
-	kb.memwrite(l, da, uval)
-	kb.setNZ(l, uval)
+	dst := kb.memread(l, da)
+	dst |= src
+	kb.memwrite(l, da, dst)
+	kb.setNZ(l, dst)
 }
 
 // ADD 06SSDD

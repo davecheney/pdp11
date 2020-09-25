@@ -198,6 +198,48 @@ func TestBICB(t *testing.T) {
 	}
 }
 
+func TestBIS(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0050001) // BIS R0, R1
+	for s := 0; s < 16; s++ {
+		for d := 0; d < 16; d++ {
+			src, dst := uint16(1)<<s, uint16(1)<<d
+			cpu.R[0] = src
+			cpu.R[1] = dst
+			cpu.R[7] = 002000
+			cpu.step()
+			t.Logf("R0: %06o, R1: %06o", src, dst)
+			is.Equal(cpu.R[1], src|dst)
+			is.Equal(cpu.n(), (src|dst)&0x8000 > 0)
+			is.Equal(cpu.z(), src|dst == 0)
+			is.Equal(cpu.v(), false)
+		}
+	}
+}
+
+func TestBISB(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0150001) // BISB R0, R1
+	for s := 0; s < 16; s++ {
+		for d := 0; d < 16; d++ {
+			src, dst := uint16(1)<<s, uint16(1)<<d
+			cpu.R[0] = src
+			cpu.R[1] = dst
+			cpu.R[7] = 002000
+			cpu.step()
+			t.Logf("R0: %06o, R1: %06o", src, dst)
+			is.Equal(cpu.R[1]&0xff, (src|dst)&0xff)
+			is.Equal(cpu.n(), (src|dst)&0x80 > 0)
+			is.Equal(cpu.z(), (src|dst)&0xff == 0)
+			is.Equal(cpu.v(), false)
+		}
+	}
+}
+
 func TestSBC(t *testing.T) {
 	is := is.New(t)
 	var cpu KB11
