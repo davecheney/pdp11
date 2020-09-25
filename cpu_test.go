@@ -128,14 +128,38 @@ func TestCMP(t *testing.T) {
 			cpu.R[1] = dst
 			cpu.R[7] = 002000
 			cpu.step()
-			result := uint32(src) - uint32(dst)
+			result := src + (^dst) + 1
 			t.Logf("R0: %06o, R1: %06o", src, dst)
 			is.Equal(cpu.R[0], src)
 			is.Equal(cpu.R[1], dst)
 			is.Equal(cpu.n(), result&0x8000 > 0)
 			is.Equal(cpu.z(), src-dst == 0)
 			is.Equal(cpu.v(), (src^dst)&0x8000 > 0 && !((dst^(src+(^dst)+1))&0x8000 > 0))
-			is.Equal(cpu.c(), src < dst)
+			is.Equal(cpu.c(), result == 0xffff)
+		}
+	}
+}
+
+func TestCMPB(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0120001) // CMPB R0, R1
+	for s := 0; s < 16; s++ {
+		for d := 0; d < 16; d++ {
+			src, dst := uint16(1)<<s, uint16(1)<<d
+			cpu.R[0] = src
+			cpu.R[1] = dst
+			cpu.R[7] = 002000
+			cpu.step()
+			result := src + (^dst) + 1
+			t.Logf("R0: %06o, R1: %06o", src, dst)
+			is.Equal(cpu.R[0], src)
+			is.Equal(cpu.R[1], dst)
+			is.Equal(cpu.n(), result&0x80 > 0)
+			is.Equal(cpu.z(), result&0xff == 0)
+			is.Equal(cpu.v(), (src^dst)&0x80 > 0 && !((dst^result)&0x80 > 0))
+			is.Equal(cpu.c(), result&0xff == 0xff)
 		}
 	}
 }

@@ -750,7 +750,7 @@ func (kb *KB11) CMP(l int, instr uint16) {
 	if (src^dst)&msb(l) > 0 && !((dst^result)&msb(l) > 0) {
 		kb.psw |= FLAGV
 	}
-	if src < dst {
+	if result == 0xffff {
 		kb.psw |= FLAGC
 	}
 
