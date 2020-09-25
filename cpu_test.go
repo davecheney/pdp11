@@ -116,6 +116,46 @@ func TestSUB(t *testing.T) {
 	}
 }
 
+func TestBIT(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0030001) // BIT R0, R1
+	for s := 0; s < 16; s++ {
+		for d := 0; d < 16; d++ {
+			src, dst := uint16(1)<<s, uint16(1)<<d
+			cpu.R[0] = src
+			cpu.R[1] = dst
+			cpu.R[7] = 002000
+			cpu.step()
+			t.Logf("R0: %06o, R1: %06o", src, dst)
+			is.Equal(cpu.n(), (src&dst)&0x8000 > 0)
+			is.Equal(cpu.z(), src&dst == 0)
+			is.Equal(cpu.v(), false)
+		}
+	}
+}
+
+func TestBITB(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0130001) // BIT R0, R1
+	for s := 0; s < 16; s++ {
+		for d := 0; d < 16; d++ {
+			src, dst := uint16(1)<<s, uint16(1)<<d
+			cpu.R[0] = src
+			cpu.R[1] = dst
+			cpu.R[7] = 002000
+			cpu.step()
+			t.Logf("R0: %06o, R1: %06o", src, dst)
+			is.Equal(cpu.n(), (src&dst)&0x80 > 0)
+			is.Equal(cpu.z(), src&dst&0xff == 0)
+			is.Equal(cpu.v(), false)
+		}
+	}
+}
+
 func TestSBC(t *testing.T) {
 	is := is.New(t)
 	var cpu KB11
