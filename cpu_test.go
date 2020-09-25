@@ -16,7 +16,9 @@ func TestADD(t *testing.T) {
 			src, dst := uint16(1)<<s, uint16(1)<<d
 			cpu.R[0] = src
 			cpu.R[1] = dst
-			cpu.ADD(0060001) // ADD R0, R1
+			cpu.Load(002000, 0060001) // ADD R0, R1
+			cpu.R[7] = 002000
+			cpu.step()
 			t.Logf("R0: %06o, R1: %06o", src, dst)
 			expect(cpu.R[1], src+dst)
 			expect(cpu.n(), (src+dst)&0x8000 > 0)
@@ -36,11 +38,13 @@ func TestADC(t *testing.T) {
 	}
 
 	var cpu KB11
+	cpu.Load(002000, 0005500) // ADC R0
 	for d := 0; d < 16; d++ {
 		dst := uint16(1) << d
 		cpu.R[0] = dst
+		cpu.R[7] = 002000
 		cpu.psw &= ^uint16(FLAGC)
-		cpu.ADC(2, 0005500) // ADC R0
+		cpu.step()
 		t.Logf("R0: %06o", dst)
 		expect(cpu.R[0], dst)
 		expect(cpu.n(), dst&0x8000 > 0)
@@ -52,8 +56,9 @@ func TestADC(t *testing.T) {
 	for d := 0; d < 16; d++ {
 		dst := uint16(1) << d
 		cpu.R[0] = dst
+		cpu.R[7] = 002000
 		cpu.psw |= FLAGC
-		cpu.ADC(2, 0005500) // ADC R0
+		cpu.step()
 		t.Logf("R0: %06o", dst)
 		expect(cpu.R[0], dst+1)
 		expect(cpu.n(), (dst+1)&0x8000 > 0)
@@ -72,11 +77,13 @@ func TestADCB(t *testing.T) {
 	}
 
 	var cpu KB11
+	cpu.Load(002000, 0105500) // ADCB R0
 	for d := 0; d < 16; d++ {
 		dst := uint16(1) << d
 		cpu.R[0] = dst
+		cpu.R[7] = 002000
 		cpu.psw &= ^uint16(FLAGC)
-		cpu.ADC(1, 0105500) // ADCB R0
+		cpu.step()
 		t.Logf("R0: %06o", dst)
 		expect(cpu.R[0]&0xff, dst&0xff)
 		expect(cpu.n(), dst&0x80 > 0)
@@ -88,8 +95,9 @@ func TestADCB(t *testing.T) {
 	for d := 0; d < 16; d++ {
 		dst := uint16(1) << d
 		cpu.R[0] = dst
+		cpu.R[7] = 002000
 		cpu.psw |= FLAGC
-		cpu.ADC(1, 0105500) // ADCB R0
+		cpu.step()
 		t.Logf("R0: %06o", dst)
 		expect(cpu.R[0]&0xff, (dst+1)&0xff)
 		expect(cpu.n(), (dst+1)&0x80 > 0)
@@ -108,12 +116,14 @@ func TestSUB(t *testing.T) {
 	}
 
 	var cpu KB11
+	cpu.Load(002000, 0160001) // SUB R0, R1
 	for s := 0; s < 16; s++ {
 		for d := 0; d < 16; d++ {
 			src, dst := uint16(1)<<s, uint16(1)<<d
 			cpu.R[0] = src
 			cpu.R[1] = dst
-			cpu.SUB(0160001) // SUB R0, R1
+			cpu.R[7] = 002000
+			cpu.step()
 			t.Logf("R0: %06o, R1: %06o", src, dst)
 			expect(cpu.R[1], dst-src)
 			expect(cpu.n(), (dst-src)&0x8000 > 0)
@@ -133,10 +143,12 @@ func TestTST(t *testing.T) {
 	}
 
 	var cpu KB11
+	cpu.Load(002000, 0005700) // TST R0
 	for d := 0; d < 16; d++ {
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.TST(2, 0005700) // TST R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o", dst)
 		expect(cpu.n(), (dst)&0x8000 > 0)
 		expect(cpu.z(), dst == 0)
@@ -151,11 +163,13 @@ func TestTSTB(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0105700) // TSTB R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.TST(1, 0105700) // TSTB R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		expect(cpu.n(), dst&0x80 > 0)
 		expect(cpu.z(), (dst&0xff) == 0)
@@ -170,11 +184,13 @@ func TestNEG(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0005400) // NEG R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.NEG(2, 0005400) // NEG R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		expect(cpu.R[0], -dst)
 		expect(cpu.n(), -dst&0x8000 > 0)
@@ -192,11 +208,13 @@ func TestNEGB(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0105400) // NEG R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.NEG(1, 0105400) // NEGB R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := (-dst) & 0xff
 		expect(cpu.R[0]&0xff, result)
@@ -215,11 +233,13 @@ func TestDEC(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0005300) // DEC R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.DEC(2, 0005300) // DEC R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := dst - 1
 		expect(cpu.R[0], result)
@@ -237,11 +257,13 @@ func TestDECB(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0105300) // DECB R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.DEC(1, 0105300) // DECB R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := (dst - 1) & 0xff
 		expect(cpu.R[0]&0xff, result)
@@ -259,11 +281,13 @@ func TestINC(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0005200) // INC R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.INC(2, 0005200) // INC R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := dst + 1
 		expect(cpu.R[0], result)
@@ -281,11 +305,13 @@ func TestINCB(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0105200) // INCB R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.INC(1, 0105200) // INCB R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := (dst + 1) & 0xff
 		expect(cpu.R[0]&0xff, result)
@@ -303,11 +329,13 @@ func TestCOM(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0005100) // COM R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.COM(2, 0005100) // COM R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := ^dst
 		expect(cpu.R[0], result)
@@ -326,11 +354,13 @@ func TestCOMB(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0105100) // COMB R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.COM(1, 0105100) // COMB R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := (^dst) & 0xff
 		expect(cpu.R[0]&0xff, result)
@@ -349,11 +379,13 @@ func TestCLR(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0005000) // CLR R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.CLR(2, 0005000) // CLR R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		expect(cpu.R[0], uint16(0))
 		expect(cpu.n(), false)
@@ -371,11 +403,13 @@ func TestCLRB(t *testing.T) {
 		}
 	}
 
+	var cpu KB11
+	cpu.Load(002000, 0105000) // CLRB R0
 	for d := 0; d < 16; d++ {
-		var cpu KB11
 		dst := uint16(1) << d
 		cpu.R[0] = dst
-		cpu.CLR(1, 0105000) // CLRB R0
+		cpu.R[7] = 002000
+		cpu.step()
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		expect(cpu.R[0]&0xff, uint16(0))
 		expect(cpu.n(), false)
