@@ -90,6 +90,95 @@ func TestTSTB(t *testing.T) {
 	}
 }
 
+func TestNEG(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.NEG(2, 0005400) // NEG R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		expect(cpu.R[0], -dst)
+		expect(cpu.n(), -dst&0x8000 > 0)
+		expect(cpu.z(), -dst == 0)
+		expect(cpu.v(), -dst == 0x8000)
+		expect(cpu.c(), -dst != 0)
+	}
+}
+
+func TestNEGB(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.NEG(1, 0105400) // NEGB R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		result := (-dst) & 0xff
+		expect(cpu.R[0]&0xff, result)
+		expect(cpu.n(), result&0x80 > 0)
+		expect(cpu.z(), result&0xff == 0)
+		expect(cpu.v(), result == 0x80)
+		expect(cpu.c(), result != 0)
+	}
+}
+
+func TestDEC(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.DEC(2, 0005300) // DEC R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		result := dst - 1
+		expect(cpu.R[0], result)
+		expect(cpu.n(), result&0x8000 > 0)
+		expect(cpu.z(), result == 0)
+		expect(cpu.v(), result == 0x8000)
+	}
+}
+
+func TestDECB(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.DEC(1, 0105300) // DECB R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		result := (dst - 1) & 0xff
+		expect(cpu.R[0]&0xff, result)
+		expect(cpu.n(), result&0x80 > 0)
+		expect(cpu.z(), result == 0)
+		expect(cpu.v(), result == 0x80)
+	}
+}
+
 func BenchmarkADD(b *testing.B) {
 	var cpu KB11
 	cpu.Load(0002000,
@@ -132,6 +221,30 @@ func BenchmarkTSTB(b *testing.B) {
 	var cpu KB11
 	cpu.Load(0002000,
 		0105700, // TSTB R0
+	)
+	for i := 0; i < b.N; i++ {
+		cpu.R[0] = uint16(i)
+		cpu.R[7] = 0002000
+		cpu.step()
+	}
+}
+
+func BenchmarkNEG(b *testing.B) {
+	var cpu KB11
+	cpu.Load(0002000,
+		0005400, // NEG R0
+	)
+	for i := 0; i < b.N; i++ {
+		cpu.R[0] = uint16(i)
+		cpu.R[7] = 0002000
+		cpu.step()
+	}
+}
+
+func BenchmarkNEGB(b *testing.B) {
+	var cpu KB11
+	cpu.Load(0002000,
+		0105400, // NEGB R0
 	)
 	for i := 0; i < b.N; i++ {
 		cpu.R[0] = uint16(i)

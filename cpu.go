@@ -476,26 +476,28 @@ func (kb *KB11) INC(l int, instr uint16) {
 // DEC 0053DD, DECB 1053DD
 func (kb *KB11) DEC(l int, instr uint16) {
 	da := kb.DA(instr)
-	uval := (kb.memread(l, da) - 1) & max(l)
-	kb.memwrite(l, da, uval)
-	kb.setNZV(l, uval)
+	dst := kb.memread(l, da)
+	dst = dst - 1&max(l)
+	kb.memwrite(l, da, dst)
+	kb.setNZV(l, dst)
 }
 
 // NEG 0054DD, NEGB 1054DD
 func (kb *KB11) NEG(l int, instr uint16) {
 	da := kb.DA(instr)
-	sval := (-kb.memread(l, da)) & max(l)
-	kb.memwrite(l, da, sval)
+	dst := kb.memread(l, da)
+	dst = -dst & max(l)
+	kb.memwrite(l, da, dst)
 	kb.psw &= 0xFFF0
-	if sval&msb(l) > 0 {
+	if dst&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if sval == 0 {
+	if dst&max(l) == 0 {
 		kb.psw |= FLAGZ
 	} else {
 		kb.psw |= FLAGC
 	}
-	if sval == 0x8000 {
+	if dst == msb(l) {
 		kb.psw |= FLAGV
 	}
 }
@@ -1120,7 +1122,7 @@ func (kb *KB11) setNZ(l int, v uint16) {
 // Set N, Z & V (C unchanged)
 func (kb *KB11) setNZV(l int, v uint16) {
 	kb.setNZ(l, v)
-	if v == mask(l) {
+	if v == msb(l) {
 		kb.psw |= FLAGV
 	}
 }
