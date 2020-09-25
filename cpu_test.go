@@ -115,3 +115,27 @@ func BenchmarkSUB(b *testing.B) {
 		cpu.step()
 	}
 }
+
+func BenchmarkTST(b *testing.B) {
+	var cpu KB11
+	cpu.Load(0002000,
+		0005700, // TST R0
+	)
+	for i := 0; i < b.N; i++ {
+		cpu.R[0] = uint16(i)
+		cpu.R[7] = 0002000
+		cpu.step()
+	}
+}
+
+func BenchmarkTSTB(b *testing.B) {
+	var cpu KB11
+	cpu.Load(0002000,
+		0105700, // TSTB R0
+	)
+	for i := 0; i < b.N; i++ {
+		cpu.R[0] = uint16(i)
+		cpu.R[7] = 0002000
+		cpu.step()
+	}
+}

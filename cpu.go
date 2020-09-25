@@ -40,7 +40,7 @@ func (kb *KB11) step() {
 	kb.pc = kb.R[7]
 	instr := kb.fetch16()
 
-	kb.printstate()
+	// kb.printstate()
 
 	switch instr >> 12 { // xxSSDD Mostly double operand instructions
 	case 0: // 00xxxx mixed group
