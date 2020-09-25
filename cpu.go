@@ -736,23 +736,24 @@ func (kb *KB11) MOV(len int, instr uint16) {
 
 // CMP 02SSDD, CMPB 12SSDD
 func (kb *KB11) CMP(l int, instr uint16) {
-	val1 := kb.memread(l, kb.SA(instr))
+	src := kb.memread(l, kb.SA(instr))
 	da := kb.DA(instr)
-	val2 := kb.memread(l, da)
-	sval := (val1 - val2) & max(l)
+	dst := kb.memread(l, da)
+	result := src + (^dst) + 1
 	kb.psw &= 0xFFF0
-	if sval == 0 {
+	if result == 0 {
 		kb.psw |= FLAGZ
 	}
-	if sval&msb(l) > 0 {
+	if result&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if (val1^val2)&msb(l) > 0 && !(((val2 ^ sval) & msb(l)) > 0) {
+	if (src^dst)&msb(l) > 0 && !((dst^result)&msb(l) > 0) {
 		kb.psw |= FLAGV
 	}
-	if val1 < val2 {
+	if src < dst {
 		kb.psw |= FLAGC
 	}
+
 }
 
 // BIT 03SSDD, BITB 13SSDD

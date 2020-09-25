@@ -116,6 +116,30 @@ func TestSUB(t *testing.T) {
 	}
 }
 
+func TestCMP(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0020001) // CMP R0, R1
+	for s := 0; s < 16; s++ {
+		for d := 0; d < 16; d++ {
+			src, dst := uint16(1)<<s, uint16(1)<<d
+			cpu.R[0] = src
+			cpu.R[1] = dst
+			cpu.R[7] = 002000
+			cpu.step()
+			result := uint32(src) - uint32(dst)
+			t.Logf("R0: %06o, R1: %06o", src, dst)
+			is.Equal(cpu.R[0], src)
+			is.Equal(cpu.R[1], dst)
+			is.Equal(cpu.n(), result&0x8000 > 0)
+			is.Equal(cpu.z(), src-dst == 0)
+			is.Equal(cpu.v(), (src^dst)&0x8000 > 0 && !((dst^(src+(^dst)+1))&0x8000 > 0))
+			is.Equal(cpu.c(), src < dst)
+		}
+	}
+}
+
 func TestBIT(t *testing.T) {
 	is := is.New(t)
 
