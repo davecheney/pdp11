@@ -14,7 +14,7 @@ func main() {
 }
 
 type runCmd struct {
-	StartAddr uint16 `name:"startaddr" default:"002002"`
+	StartAddr uint16 `name:"startaddr" default:"1026" help:"pc start address in decimal"`
 	RK0       string `name:"rk0" type:"existingfile" help:"path to rk0 image"`
 }
 
@@ -26,6 +26,6 @@ func (r *runCmd) Run(ctx *kong.Context) error {
 		return err
 	}
 	cpu.Load(0002000, bootrom[:]...)
-	cpu.R[7] = 0002000
+	cpu.R[7] = r.StartAddr
 	return cpu.Run()
 }
