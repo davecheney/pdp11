@@ -763,19 +763,14 @@ func (kb *KB11) BIT(l int, instr uint16) {
 	kb.setNZ(l, result)
 }
 
+// BIC 04SSDD, BICB 14SSDD
 func (kb *KB11) BIC(l int, instr uint16) {
-	val1 := kb.memread(l, kb.SA(instr))
+	src := kb.memread(l, kb.SA(instr))
 	da := kb.DA(instr)
-	val2 := kb.memread(l, da)
-	uval := (max(l) ^ val1) & val2
-	kb.memwrite(l, da, uval)
-	kb.psw &= 0xFFF1
-	if uval == 0 {
-		kb.psw |= FLAGZ
-	}
-	if uval&msb(l) > 0 {
-		kb.psw |= FLAGN
-	}
+	dst := kb.memread(l, da)
+	dst = (^src) & dst
+	kb.memwrite(l, da, dst)
+	kb.setNZ(l, dst)
 }
 
 func (kb *KB11) BIS(l int, instr uint16) {
