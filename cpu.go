@@ -513,30 +513,21 @@ func (kb *KB11) NEG(l int, instr uint16) {
 
 func (kb *KB11) ADC(l int, instr uint16) {
 	da := kb.DA(instr)
-	uval := kb.memread(l, da)
-	if kb.c() {
-		kb.memwrite(l, da, (uval+1)&max(l))
+	dst := kb.memread(l, da)
+	switch kb.psw & FLAGC {
+	case FLAGC:
+		result := (dst + kb.psw&FLAGC)
+		kb.memwrite(l, da, result)
 		kb.psw &= 0xFFF0
-		if (uval+1)&msb(l) > 0 {
-			kb.psw |= FLAGN
-		}
-		if uval == max(l) {
-			kb.psw |= FLAGZ
-		}
-		if uval == 0077777 {
+		kb.setNZ(l, result)
+		if result&max(l) == max(l) {
 			kb.psw |= FLAGV
 		}
-		if uval == 0177777 {
+		if result&max(l) == 0 {
 			kb.psw |= FLAGC
 		}
-	} else {
-		kb.psw &= 0xFFF0
-		if uval&msb(l) > 0 {
-			kb.psw |= FLAGN
-		}
-		if uval == 0 {
-			kb.psw |= FLAGN
-		}
+	default:
+		kb.setNZ(l, dst)
 	}
 }
 

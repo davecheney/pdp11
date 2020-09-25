@@ -27,6 +27,78 @@ func TestADD(t *testing.T) {
 	}
 }
 
+func TestADC(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	var cpu KB11
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.ADC(2, 0005500) // ADC R0
+		t.Logf("R0: %06o", dst)
+		expect(cpu.R[0], dst)
+		expect(cpu.n(), dst&0x8000 > 0)
+		expect(cpu.z(), dst == 0)
+		expect(cpu.v(), false)
+		expect(cpu.c(), false)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.psw |= FLAGC
+		cpu.ADC(2, 0005500) // ADC R0
+		t.Logf("R0: %06o", dst)
+		expect(cpu.R[0], dst+1)
+		expect(cpu.n(), (dst+1)&0x8000 > 0)
+		expect(cpu.z(), dst+1 == 0)
+		expect(cpu.v(), dst == 0077777)
+		expect(cpu.c(), dst == 0177777)
+	}
+}
+
+func TestADCB(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	var cpu KB11
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.ADC(1, 0105500) // ADCB R0
+		t.Logf("R0: %06o", dst)
+		expect(cpu.R[0]&0xff, dst&0xff)
+		expect(cpu.n(), dst&0x80 > 0)
+		expect(cpu.z(), dst&0xff == 0)
+		expect(cpu.v(), false)
+		expect(cpu.c(), false)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.psw |= FLAGC
+		cpu.ADC(1, 0105500) // ADCB R0
+		t.Logf("R0: %06o", dst)
+		expect(cpu.R[0]&0xff, (dst+1)&0xff)
+		expect(cpu.n(), (dst+1)&0x80 > 0)
+		expect(cpu.z(), (dst+1)&0xff == 0)
+		expect(cpu.v(), (dst+1)&0xff == 0200)
+		expect(cpu.c(), (dst+1)&0xff == 0)
+	}
+}
+
 func TestSUB(t *testing.T) {
 	expect := func(got, want interface{}) {
 		if got != want {
