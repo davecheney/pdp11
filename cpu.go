@@ -459,25 +459,34 @@ func (kb *KB11) CLR(l int, instr uint16) {
 // COM 0051DD, COMB 1051DD
 func (kb *KB11) COM(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := ^kb.memread(l, da)
+	dst := kb.memread(l, da)
+	dst = ^dst
 	kb.memwrite(l, da, dst)
-	kb.setNZC(2, dst)
+	kb.psw &= 0xFFF0
+	if dst&msb(l) == 0 {
+		kb.psw |= FLAGN
+	}
+	if dst&max(l) == 0 {
+		kb.psw |= FLAGZ
+	}
+	kb.psw |= FLAGC
+
 }
 
 // INC 0052DD, INCB 1052DD
 func (kb *KB11) INC(l int, instr uint16) {
 	da := kb.DA(instr)
 	dst := kb.memread(l, da)
-	result := dst + 1
-	kb.memwrite(l, da, result)
-	kb.setNZV(l, result)
+	dst = (dst + 1) & max(l)
+	kb.memwrite(l, da, dst)
+	kb.setNZV(l, dst)
 }
 
 // DEC 0053DD, DECB 1053DD
 func (kb *KB11) DEC(l int, instr uint16) {
 	da := kb.DA(instr)
 	dst := kb.memread(l, da)
-	dst = dst - 1&max(l)
+	dst = (dst - 1) & max(l)
 	kb.memwrite(l, da, dst)
 	kb.setNZV(l, dst)
 }
@@ -1131,7 +1140,7 @@ func (kb *KB11) setNZV(l int, v uint16) {
 func (kb *KB11) setNZC(l int, v uint16) {
 	kb.psw &= 0xFFF0
 	kb.psw |= FLAGC
-	if v == 0 {
+	if v&max(l) == 0 {
 		kb.psw |= FLAGZ
 	}
 	if v&msb(l) > 0 {

@@ -179,6 +179,140 @@ func TestDECB(t *testing.T) {
 	}
 }
 
+func TestINC(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.INC(2, 0005200) // INC R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		result := dst + 1
+		expect(cpu.R[0], result)
+		expect(cpu.n(), result&0x8000 > 0)
+		expect(cpu.z(), result == 0)
+		expect(cpu.v(), result == 0x8000)
+	}
+}
+
+func TestINCB(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.INC(1, 0105200) // INCB R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		result := (dst + 1) & 0xff
+		expect(cpu.R[0]&0xff, result)
+		expect(cpu.n(), result&0x80 > 0)
+		expect(cpu.z(), result == 0)
+		expect(cpu.v(), result == 0x80)
+	}
+}
+
+func TestCOM(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.COM(2, 0005100) // COM R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		result := ^dst
+		expect(cpu.R[0], result)
+		expect(cpu.n(), result&0x8000 == 0)
+		expect(cpu.z(), result == 0)
+		expect(cpu.v(), false)
+		expect(cpu.c(), true)
+	}
+}
+
+func TestCOMB(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.COM(1, 0105100) // COMB R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		result := (^dst) & 0xff
+		expect(cpu.R[0]&0xff, result)
+		expect(cpu.n(), result&0x80 == 0)
+		expect(cpu.z(), result == 0)
+		expect(cpu.v(), false)
+		expect(cpu.c(), true)
+	}
+}
+
+func TestCLR(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.CLR(2, 0005000) // CLR R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		expect(cpu.R[0], uint16(0))
+		expect(cpu.n(), false)
+		expect(cpu.z(), true)
+		expect(cpu.v(), false)
+		expect(cpu.c(), false)
+	}
+}
+
+func TestCLRB(t *testing.T) {
+	expect := func(got, want interface{}) {
+		if got != want {
+			t.Helper()
+			t.Error("got:", got, "want:", want)
+		}
+	}
+
+	for d := 0; d < 16; d++ {
+		var cpu KB11
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.CLR(1, 0105000) // CLRB R0
+		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
+		expect(cpu.R[0]&0xff, uint16(0))
+		expect(cpu.n(), false)
+		expect(cpu.z(), true)
+		expect(cpu.v(), false)
+		expect(cpu.c(), false)
+	}
+}
+
 func BenchmarkADD(b *testing.B) {
 	var cpu KB11
 	cpu.Load(0002000,
