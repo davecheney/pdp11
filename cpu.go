@@ -570,26 +570,28 @@ func (kb *KB11) TST(l int, instr uint16) {
 
 func (kb *KB11) ROR(l int, instr uint16) {
 	da := kb.DA(instr)
-	sval := kb.memread(l, da)
+	dst := kb.memread(l, da)
+	result := uint32(dst >> 1)
 	if kb.c() {
-		sval |= max(l) + 1
+		// shift carry in from the left
+		result |= uint32(msb(l))
 	}
+	kb.memwrite(l, da, uint16(result))
 	kb.psw &= 0xFFF0
-	if sval&1 > 0 {
+	if dst&1 > 0 {
+		// shift lsb into carry
 		kb.psw |= FLAGC
 	}
-	// watch out for integer wrap around
-	if sval&(max(l)+1) > 0 {
+
+	if result&uint32(msb(l)) > 0 {
 		kb.psw |= FLAGN
 	}
-	if !(sval&max(l) > 0) {
+	if !(result&uint32(max(l)) > 0) {
 		kb.psw |= FLAGZ
 	}
-	if sval&1^sval&(max(l)+1) > 0 {
+	if (result&uint32(msb(l)) > 0) != (dst&1 > 0) {
 		kb.psw |= FLAGV
 	}
-	sval >>= 1
-	kb.memwrite(l, da, sval)
 }
 
 func (kb *KB11) ROL(l int, instr uint16) {

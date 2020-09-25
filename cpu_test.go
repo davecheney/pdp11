@@ -115,6 +115,7 @@ func TestSUB(t *testing.T) {
 		}
 	}
 }
+
 func TestSBC(t *testing.T) {
 	is := is.New(t)
 	var cpu KB11
@@ -178,6 +179,77 @@ func TestSBCB(t *testing.T) {
 		is.Equal(cpu.z(), (dst-1)&0xff == 0)
 		is.Equal(cpu.v(), dst&0xff == 0200)
 		is.Equal(cpu.c(), dst&0xff != 0)
+	}
+}
+
+func TestROR(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0006000) // ROR R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		is.Equal(cpu.R[0], dst>>1)
+		is.Equal(cpu.n(), false)
+		is.Equal(cpu.z(), dst>>1 == 0)
+		is.Equal(cpu.v(), cpu.n() != cpu.c())
+		is.Equal(cpu.c(), dst&1 > 0)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw |= FLAGC
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		result := 0x8000 | dst>>1
+		is.Equal(cpu.R[0], result)
+		is.Equal(cpu.n(), true)
+		is.Equal(cpu.z(), false)
+		is.Equal(cpu.v(), cpu.n() != cpu.c())
+		is.Equal(cpu.c(), dst&1 > 0)
+	}
+}
+
+func TestRORB(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0106000) // RORB R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.step()
+		result := (dst & 0xff) >> 1
+		t.Logf("R0: %06o", dst)
+		is.Equal(cpu.R[0]&0xff, result)
+		is.Equal(cpu.n(), false)
+		is.Equal(cpu.z(), result == 0)
+		is.Equal(cpu.v(), cpu.n() != cpu.c())
+		is.Equal(cpu.c(), dst&1 > 0)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw |= FLAGC
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		result := 0x80 | (dst>>1)&0xff
+		is.Equal(cpu.R[0]&0xff, result)
+		is.Equal(cpu.n(), true)
+		is.Equal(cpu.z(), false)
+		is.Equal(cpu.v(), cpu.n() != cpu.c())
+		is.Equal(cpu.c(), dst&1 > 0)
 	}
 }
 
