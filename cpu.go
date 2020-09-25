@@ -566,12 +566,7 @@ func (kb *KB11) SBC(l int, instr uint16) {
 func (kb *KB11) TST(l int, instr uint16) {
 	dst := kb.memread(l, kb.DA(instr))
 	kb.psw &= 0xFFF0
-	if dst == 0 {
-		kb.psw |= FLAGZ
-	}
-	if dst&msb(l) > 0 {
-		kb.psw |= FLAGN
-	}
+	kb.setNZ(l, dst)
 }
 
 func (kb *KB11) ROR(l int, instr uint16) {
@@ -1092,11 +1087,7 @@ func (kb *KB11) DA(instr uint16) uint16 {
 
 func (kb *KB11) memread(l int, a uint16) uint16 {
 	if isReg(a) {
-		if l == 2 {
-			return kb.R[a&7]
-		} else {
-			return kb.R[a&7] & 0xFF
-		}
+		return kb.R[a&7] & max(l)
 	}
 	return kb.read(l, a)
 }
@@ -1118,11 +1109,11 @@ func (kb *KB11) memwrite(l int, a, v uint16) {
 // Set N & Z clearing V (C unchanged)
 func (kb *KB11) setNZ(l int, v uint16) {
 	kb.psw &= (0xFFF0 | FLAGC)
-	if v == 0 {
-		kb.psw |= FLAGZ
-	}
 	if v&msb(l) > 0 {
 		kb.psw |= FLAGN
+	}
+	if v&max(l) == 0 {
+		kb.psw |= FLAGZ
 	}
 }
 
@@ -1172,7 +1163,7 @@ const (
 	FLAGN = 8
 )
 
-func (kb *KB11) n() bool { return kb.psw&FLAGN > 0 }
+func (kb *KB11) n() bool { return kb.psw&FLAGN == FLAGN }
 func (kb *KB11) z() bool { return kb.psw&FLAGZ > 0 }
 func (kb *KB11) v() bool { return kb.psw&FLAGV > 0 }
 func (kb *KB11) c() bool { return kb.psw&FLAGC > 0 }
@@ -1243,7 +1234,7 @@ func msb(l int) uint16 {
 	if l == 2 {
 		return 0x8000
 	}
-	return 0x00
+	return 0x80
 }
 
 func mask(l int) uint16 {
