@@ -115,6 +115,71 @@ func TestSUB(t *testing.T) {
 		}
 	}
 }
+func TestSBC(t *testing.T) {
+	is := is.New(t)
+	var cpu KB11
+	cpu.Load(002000, 0005600) // SBC R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		is.Equal(cpu.R[0], dst)
+		is.Equal(cpu.n(), dst&0x8000 > 0)
+		is.Equal(cpu.z(), dst == 0)
+		is.Equal(cpu.v(), false)
+		is.Equal(cpu.c(), false)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw |= FLAGC
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		is.Equal(cpu.R[0], dst-1)
+		is.Equal(cpu.n(), (dst-1)&0x8000 > 0)
+		is.Equal(cpu.z(), dst-1 == 0)
+		is.Equal(cpu.v(), dst == 0100000)
+		is.Equal(cpu.c(), dst != 0)
+	}
+}
+
+func TestSBCB(t *testing.T) {
+	is := is.New(t)
+	var cpu KB11
+	cpu.Load(002000, 0105600) // SBCB R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		is.Equal(cpu.R[0], dst)
+		is.Equal(cpu.n(), dst&0x80 > 0)
+		is.Equal(cpu.z(), dst&0xff == 0)
+		is.Equal(cpu.v(), false)
+		is.Equal(cpu.c(), false)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw |= FLAGC
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		is.Equal(cpu.R[0]&0xff, (dst-1)&0xff)
+		is.Equal(cpu.n(), (dst-1)&0x80 > 0)
+		is.Equal(cpu.z(), (dst-1)&0xff == 0)
+		is.Equal(cpu.v(), dst&0xff == 0200)
+		is.Equal(cpu.c(), dst&0xff != 0)
+	}
+}
 
 func TestTST(t *testing.T) {
 	is := is.New(t)

@@ -533,34 +533,31 @@ func (kb *KB11) ADC(l int, instr uint16) {
 
 func (kb *KB11) SBC(l int, instr uint16) {
 	da := kb.DA(instr)
-	sval := kb.memread(l, da)
+	dst := kb.memread(l, da)
+	result := dst - kb.psw&FLAGC
 	if kb.c() {
-		kb.memwrite(l, da, (sval-1)&max(l))
+		kb.memwrite(l, da, result)
 		kb.psw &= 0xFFF0
-		if (sval-1)&msb(l) > 0 {
+		if result&msb(l) > 0 {
 			kb.psw |= FLAGN
 		}
-		if sval == 1 {
+		if result&max(l) == 0 {
 			kb.psw |= FLAGZ
 		}
-		if sval > 0 {
+		if result&max(l) != max(l) {
 			kb.psw |= FLAGC
 		}
-		if sval == 0100000 {
+		if dst&msb(l) > 0 {
 			kb.psw |= FLAGV
 		}
 	} else {
-		kb.psw &= 0xFFF0
-		if sval&msb(l) > 0 {
+		kb.psw &= 0xFFF0 | FLAGC | FLAGV
+		if dst&msb(l) > 0 {
 			kb.psw |= FLAGN
 		}
-		if sval == 0 {
+		if dst&max(l) == 0 {
 			kb.psw |= FLAGZ
 		}
-		if sval == 0100000 {
-			kb.psw |= FLAGV
-		}
-		kb.psw |= FLAGC
 	}
 }
 
