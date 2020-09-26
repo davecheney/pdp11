@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 )
@@ -18,13 +19,13 @@ type RK05 struct {
 }
 
 func (rk *RK05) write16(v uint16) {
-	rk.buf[rk.pos] = uint8(v & 0xff)
-	rk.buf[rk.pos+1] = uint8(v >> 8)
+	binary.LittleEndian.PutUint16(rk.buf[rk.pos:], v)
 	rk.pos += 2
 }
 
 func (rk *RK05) read16() uint16 {
-	v := uint16(rk.buf[rk.pos]<<16) | uint16(rk.buf[rk.pos+1])
+	v := binary.LittleEndian.Uint16(rk.buf[rk.pos:])
+	fmt.Printf("rk read16: pos: %08x, val: %06o, raw: %v\n", rk.pos, v, rk.buf[rk.pos:rk.pos+2])
 	rk.pos += 2
 	return v
 }
@@ -75,8 +76,8 @@ func (rk *RK11) rknotready() {
 
 func (rk *RK11) rkready() {
 	fmt.Println("rk11: ready")
-	rk.rkds |= 1<<6 
-	rk.rkcs |= 1<<7
+	rk.rkds |= 1 << 6
+	rk.rkcs |= 1 << 7
 	rk.rkcs &= ^uint16(1) // no go
 }
 
