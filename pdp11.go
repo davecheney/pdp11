@@ -1,7 +1,12 @@
 // pdp11 emulator.
 package main
 
-import "github.com/alecthomas/kong"
+import (
+	"os"
+	"time"
+
+	"github.com/alecthomas/kong"
+)
 
 func main() {
 	var cli struct {
@@ -21,11 +26,27 @@ type runCmd struct {
 func (r *runCmd) Run(ctx *kong.Context) error {
 	cpu := KB11{}
 	cpu.unibus.rk11.unibus = &cpu.unibus
+	cpu.unibus.cons.Input = make(chan byte, 1)
 	cpu.Reset()
 	if err := cpu.unibus.rk11.Mount(0, r.RK0); err != nil {
 		return err
 	}
 	cpu.Load(0002000, bootrom[:]...)
 	cpu.R[7] = r.StartAddr
+	go stdin(cpu.unibus.cons.Input)
 	return cpu.Run()
+}
+
+func stdin(c chan uint8) {
+	for _, v := range "unix\n" {
+		c <- byte(v)
+		time.Sleep(20 * time.Millisecond)
+	}
+	var b [1]byte
+	for {
+		n, _ := os.Stdin.Read(b[:])
+		if n > 0 {
+			c <- b[0]
+		}
+	}
 }

@@ -18,7 +18,7 @@ type KB11 struct {
 }
 
 func (kb *KB11) Reset() {
-
+	kb.unibus.reset()
 }
 
 func (kb *KB11) Run() error {
@@ -33,12 +33,18 @@ func (kb *KB11) run() {
 	for {
 		kb.step()
 		kb.unibus.rk11.step()
+		kb.unibus.cons.step()
 	}
 }
 
 func (kb *KB11) handleTrap() {
-	trap := recover()
-	fmt.Println(trap)
+	t := recover()
+	switch t := t.(type) {
+	case trap:
+		kb.trapat(t.vec)
+	default:
+		panic(t)
+	}
 }
 
 // Load loads words into memory starting at offset bypassing the mmu.
@@ -772,8 +778,8 @@ func (kb *KB11) CMP(l int, instr uint16) {
 func (kb *KB11) BIT(l int, instr uint16) {
 	src := kb.memread(l, kb.SA(instr))
 	dst := kb.memread(l, kb.DA(instr))
-	result := src & dst
-	kb.setNZ(l, result)
+	dst = src & dst
+	kb.setNZ(l, dst)
 }
 
 // BIC 04SSDD, BICB 14SSDD

@@ -3,17 +3,19 @@ package main
 import (
 	"fmt"
 	"os"
+	"syscall"
 )
 
 type KL11 struct {
 	rcsr, rbuf, xcsr, xbuf uint16
-	count                  uint8
+	xmitcount, recvcount   int
+	Input                  chan byte
 }
 
-func (kl *KL11) clearterminal() {
+func (kl *KL11) reset() {
 	kl.rcsr = 0
-	kl.xcsr = 0x80
 	kl.rbuf = 0
+	kl.xcsr = 0x80
 	kl.xbuf = 0
 }
 
@@ -42,17 +44,18 @@ func (kl *KL11) addchar(c uint16) {
 func (kl *KL11) read16(a addr18) uint16 {
 	switch a & 06 {
 	case 00:
+		// 777560 Receive Control and Status register
 		return kl.rcsr
 	case 02:
-		if kl.rcsr&0x80 > 0 {
-			kl.rcsr &= 0xff7e
-			return kl.rbuf
-		}
-		return 0
+		// 777562 Receive Buffer
+		kl.rcsr &= ^uint16(1 << 7)
+		return kl.rbuf & 0xff
 	case 04:
+		// 777564 Transmit Control and Status register
 		return kl.xcsr
 	case 06:
-		return 0
+		// 777566 Transmit Buffer
+		return 0 // write only
 	default:
 		fmt.Printf("KL11: read from invalid address %06o\n", a)
 		panic(trap{INTBUS})
@@ -62,29 +65,44 @@ func (kl *KL11) read16(a addr18) uint16 {
 func (kl *KL11) write16(a addr18, v uint16) {
 	switch a & 06 {
 	case 00:
-		if v&(1<<6) > 0 {
-			kl.rcsr |= 1 << 6
-		} else {
-			kl.rcsr &= ^uint16(1 << 6)
-		}
+		// 777560 Receive Control and Status register
+		kl.rcsr = v
+	case 02:
+		// 777562 Receive Buffer
+		kl.rcsr &= ^uint16(1 << 7)
+		// read only, write reset rcsr.done
 	case 04:
-		if v&(1<<6) > 0 {
-			kl.xcsr |= 1 << 6
-		} else {
-			kl.xcsr &= ^uint16(1 << 6)
-		}
+		// 777564 Transmit Control and Status register
+		kl.xcsr = v
 	case 06:
-		kl.xbuf = v & 0x7f
-		kl.xcsr &= 0xff7f
-		if kl.xcsr&0x80 == 0 {
-			kl.writeterminal(kl.xbuf & 0x7f)
-			kl.xcsr |= 0x80
-			if kl.xcsr&(1<<6) > 0 {
-				panic(interrupt{INTTTYOUT, 4})
-			}
-		}
+		// 777566 Transmit Buffer
+		kl.xbuf = v & 0xff
+		kl.xcsr &= ^uint16(1 << 7)
 	default:
 		fmt.Printf("KL11: write to invalid address %06o\n", a)
 		panic(trap{INTBUS})
+	}
+}
+
+func (kl *KL11) step() {
+	if kl.xbuf > 0 {
+		b := [1]byte{uint8(kl.xbuf)}
+		syscall.Write(1, b[:])
+		kl.xmitcount = 30
+		kl.xbuf = 0
+	}
+	if kl.xmitcount > 0 {
+		kl.xmitcount--
+		if kl.xmitcount == 0 {
+			kl.xcsr |= (1 << 7)
+		}
+	}
+	if kl.rcsr&1<<7 == 0 {
+		select {
+		case c := <-kl.Input:
+			kl.rbuf = uint16(c)
+			kl.rcsr |= (1 << 7)
+		default:
+		}
 	}
 }

@@ -68,13 +68,13 @@ func (rk *RK11) read16(a addr18) uint16 {
 }
 
 func (rk *RK11) rknotready() {
-	fmt.Println("rk11: not ready")
+	// fmt.Println("rk11: not ready")
 	rk.rkds &= ^uint16(1 << 6)
 	rk.rkcs &= ^uint16(1 << 7)
 }
 
 func (rk *RK11) rkready() {
-	fmt.Println("rk11: ready")
+	// fmt.Println("rk11: ready")
 	rk.rkds |= 1 << 6
 	rk.rkcs |= 1 << 7
 	rk.rkcs &= ^uint16(1) // no go
@@ -136,8 +136,8 @@ func (rk *RK11) readwrite() {
 
 	w := ((rk.rkcs >> 1) & 7) == 1
 	if true {
-		fmt.Printf("rk11: step: RKCS: %06o RKBA: %06o RKWC: %06o cylinder: %03o sector: %03o write: %v\n",
-			rk.rkcs, rk.rkba, rk.rkwc, rk.cylinder, rk.sector, w)
+		fmt.Printf("rk11: step: RKCS: %06o RKBA: %06o RKWC: %06o cylinder: %03o surface: %03o sector: %03o write: %v\n",
+			rk.rkcs, rk.rkba, rk.rkwc, rk.cylinder, rk.surface, rk.sector, w)
 	}
 
 	for i := 0; i < 256 && rk.rkwc != 0; i++ {
@@ -167,7 +167,7 @@ func (rk *RK11) readwrite() {
 }
 
 func (rk *RK11) seek() {
-	rk.units[rk.drive].pos = int(rk.cylinder*24+rk.surface*12+rk.sector) * 512
+	rk.units[rk.drive].pos = (int(rk.cylinder)*24 + int(rk.surface*12) + int(rk.sector)) * 512
 	if rk.units[rk.drive].pos > len(rk.units[rk.drive].buf) {
 		panic(fmt.Sprintf("rkstep: failed to seek\n"))
 	}

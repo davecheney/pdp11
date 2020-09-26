@@ -52,7 +52,7 @@ func (u *UNIBUS) write16(addr addr18, v uint16) {
 }
 
 func (u *UNIBUS) reset() {
-	u.cons.clearterminal()
+	u.cons.reset()
 	u.rk11.reset()
 	// u.kw11.write16(0777546, 0x00) // disable line clock INTR
 }
