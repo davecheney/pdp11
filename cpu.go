@@ -23,10 +23,22 @@ func (kb *KB11) Reset() {
 
 func (kb *KB11) Run() error {
 	for {
+		kb.run()
+	}
+	return nil
+}
+
+func (kb *KB11) run() {
+	defer kb.handleTrap()
+	for {
 		kb.step()
 		kb.unibus.rk11.step()
 	}
-	return nil
+}
+
+func (kb *KB11) handleTrap() {
+	trap := recover()
+	fmt.Println(trap)
 }
 
 // Load loads words into memory starting at offset bypassing the mmu.
@@ -739,7 +751,7 @@ func (kb *KB11) CMP(l int, instr uint16) {
 	src := kb.memread(l, kb.SA(instr))
 	da := kb.DA(instr)
 	dst := kb.memread(l, da)
-	result := src + (^dst) + 1
+	result := (src - dst) & max(l)
 	kb.psw &= 0xFFF0
 	if result == 0 {
 		kb.psw |= FLAGZ
@@ -750,7 +762,7 @@ func (kb *KB11) CMP(l int, instr uint16) {
 	if (src^dst)&msb(l) > 0 && !((dst^result)&msb(l) > 0) {
 		kb.psw |= FLAGV
 	}
-	if result == 0xffff {
+	if src < dst {
 		kb.psw |= FLAGC
 	}
 

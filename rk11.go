@@ -25,7 +25,6 @@ func (rk *RK05) write16(v uint16) {
 
 func (rk *RK05) read16() uint16 {
 	v := binary.LittleEndian.Uint16(rk.buf[rk.pos:])
-	fmt.Printf("rk read16: pos: %08x, val: %06o, raw: %v\n", rk.pos, v, rk.buf[rk.pos:rk.pos+2])
 	rk.pos += 2
 	return v
 }

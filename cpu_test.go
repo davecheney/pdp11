@@ -128,16 +128,29 @@ func TestCMP(t *testing.T) {
 			cpu.R[1] = dst
 			cpu.R[7] = 002000
 			cpu.step()
-			result := src + (^dst) + 1
+			result := uint32(src) + 0x10000 - uint32(dst)
 			t.Logf("R0: %06o, R1: %06o", src, dst)
 			is.Equal(cpu.R[0], src)
 			is.Equal(cpu.R[1], dst)
 			is.Equal(cpu.n(), result&0x8000 > 0)
 			is.Equal(cpu.z(), src-dst == 0)
 			is.Equal(cpu.v(), (src^dst)&0x8000 > 0 && !((dst^(src+(^dst)+1))&0x8000 > 0))
-			is.Equal(cpu.c(), result == 0xffff)
+			is.Equal(cpu.c(), src < dst)
 		}
 	}
+
+	// bug found in early v6 unix boot
+	cpu.R[1] = 0137000
+	cpu.R[7] = 0000032
+	cpu.Load(addr18(cpu.R[7]), 0020701) // CMP PC, R1
+	cpu.step()
+
+	is.Equal(cpu.R[1], uint16(0137000))
+	is.Equal(cpu.R[7], uint16(0000034))
+	is.Equal(cpu.n(), false)
+	is.Equal(cpu.z(), false)
+	is.Equal(cpu.v(), false)
+	is.Equal(cpu.c(), true)
 }
 
 func TestCMPB(t *testing.T) {
@@ -152,14 +165,14 @@ func TestCMPB(t *testing.T) {
 			cpu.R[1] = dst
 			cpu.R[7] = 002000
 			cpu.step()
-			result := src + (^dst) + 1
+			result := src + 0x100 - dst
 			t.Logf("R0: %06o, R1: %06o", src, dst)
 			is.Equal(cpu.R[0], src)
 			is.Equal(cpu.R[1], dst)
 			is.Equal(cpu.n(), result&0x80 > 0)
 			is.Equal(cpu.z(), result&0xff == 0)
 			is.Equal(cpu.v(), (src^dst)&0x80 > 0 && !((dst^result)&0x80 > 0))
-			is.Equal(cpu.c(), result&0xff == 0xff)
+			is.Equal(cpu.c(), src&0xff < dst&0xff)
 		}
 	}
 }
