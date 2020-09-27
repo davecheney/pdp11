@@ -20,13 +20,8 @@ func (kl *KL11) reset() {
 
 func (kl *KL11) writeterminal(char uint16) {
 	var outb [1]byte
-	switch char {
-	case 13:
-		// skip
-	default:
-		outb[0] = byte(char)
-		os.Stdout.Write(outb[:])
-	}
+	outb[0] = byte(char)
+	os.Stdout.Write(outb[:])
 }
 
 func (kl *KL11) addchar(c uint16) {
