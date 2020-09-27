@@ -26,7 +26,8 @@ type runCmd struct {
 func (r *runCmd) Run(ctx *kong.Context) error {
 	cpu := KB11{}
 	cpu.unibus.rk11.unibus = &cpu.unibus
-	cpu.unibus.cons.Input = make(chan byte, 1)
+	cpu.unibus.mmu = &cpu.mmu
+	cpu.unibus.cons.Input = make(chan byte, 0)
 	cpu.Reset()
 	if err := cpu.unibus.rk11.Mount(0, r.RK0); err != nil {
 		return err
@@ -40,7 +41,7 @@ func (r *runCmd) Run(ctx *kong.Context) error {
 func stdin(c chan uint8) {
 	for _, v := range "unix\n" {
 		c <- byte(v)
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 	var b [1]byte
 	for {

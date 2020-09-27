@@ -95,6 +95,9 @@ func (kl *KL11) step() {
 		kl.xmitcount--
 		if kl.xmitcount == 0 {
 			kl.xcsr |= (1 << 7)
+			if kl.xcsr&1<<6 > 0 {
+				panic(interrupt{INTTTYOUT, 4})
+			}
 		}
 	}
 	if kl.rcsr&1<<7 == 0 {
@@ -102,6 +105,9 @@ func (kl *KL11) step() {
 		case c := <-kl.Input:
 			kl.rbuf = uint16(c)
 			kl.rcsr |= (1 << 7)
+			if kl.rcsr&1<<6 > 0 {
+				panic(interrupt{INTTTYIN, 4})
+			}
 		default:
 		}
 	}

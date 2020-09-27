@@ -9,11 +9,13 @@ type addr18 uint32
 type UNIBUS struct {
 
 	// 128 KW of core memory minus 4 KW of io page.
-	// [000000, 757777)
-	core [(128 << 10) - (8 << 10)]uint16
+	// [000000, 767777)
+	core [(128 - 4) << 10]uint16
 
-	rk11 RK11
-	cons KL11
+	rk11      RK11
+	cons      KL11
+	mmu       *KT11
+	lineclock KW11
 }
 
 // read16 reads addr from the UNIBUS.
@@ -26,7 +28,21 @@ func (u *UNIBUS) read16(addr addr18) uint16 {
 	case 0777400:
 		return u.rk11.read16(addr)
 	case 0777500:
-		return u.cons.read16(addr)
+		switch addr {
+		case 0777572:
+			fmt.Printf("unibus:read16: %06o\n", addr)
+			return u.mmu.SR0
+		case 0777574:
+			fmt.Printf("unibus:read16: %06o\n", addr)
+			return u.mmu.SR1
+		case 0777576:
+			fmt.Printf("unibus:read16: %06o\n", addr)
+			return u.mmu.SR2
+		default:
+			return u.cons.read16(addr)
+		}
+	case 0772200, 0772300, 0777600:
+		return u.mmu.read16(addr)
 	default:
 		fmt.Printf("unibus: read from invalid address %06o\n", addr)
 		panic(trap{INTBUS})
@@ -44,7 +60,21 @@ func (u *UNIBUS) write16(addr addr18, v uint16) {
 	case 0777400:
 		u.rk11.write16(addr, v)
 	case 0777500:
-		u.cons.write16(addr, v)
+		switch addr {
+		case 0777572:
+			fmt.Printf("unibus:write16: %06o %06o\n", addr, v)
+			u.mmu.SR0 = v
+		case 0777574:
+			fmt.Printf("unibus:write16: %06o %06o\n", addr, v)
+			u.mmu.SR1 = v
+		case 0777576:
+			fmt.Printf("unibus:write16: %06o %06o\n", addr, v)
+			u.mmu.SR2 = v
+		default:
+			u.cons.write16(addr, v)
+		}
+	case 0772200, 0772300, 0777600:
+		u.mmu.write16(addr, v)
 	default:
 		fmt.Printf("unibus: write to invalid address %06o\n", addr)
 		panic(trap{INTBUS})
@@ -54,5 +84,5 @@ func (u *UNIBUS) write16(addr addr18, v uint16) {
 func (u *UNIBUS) reset() {
 	u.cons.reset()
 	u.rk11.reset()
-	// u.kw11.write16(0777546, 0x00) // disable line clock INTR
+	u.lineclock.write16(0777546, 0x00) // disable line clock INTR
 }

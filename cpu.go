@@ -29,21 +29,20 @@ func (kb *KB11) Run() error {
 }
 
 func (kb *KB11) run() {
-	defer kb.handleTrap()
+	defer func() {
+		t := recover()
+		switch t := t.(type) {
+		case trap:
+			kb.trapat(t.vec)
+		default:
+			panic(t)
+		}
+	}()
+
 	for {
 		kb.step()
 		kb.unibus.rk11.step()
 		kb.unibus.cons.step()
-	}
-}
-
-func (kb *KB11) handleTrap() {
-	t := recover()
-	switch t := t.(type) {
-	case trap:
-		kb.trapat(t.vec)
-	default:
-		panic(t)
 	}
 }
 
