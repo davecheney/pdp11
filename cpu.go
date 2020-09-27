@@ -15,6 +15,8 @@ type KB11 struct {
 	psw                        uint16    // processor status word
 	stackpointer               [4]uint16 // Alternate R6 (kernel, super, illegal, user)
 	stacklimit, switchregister uint16
+
+	interrupts [8]struct{ vec, pri uint16 }
 }
 
 func (kb *KB11) Reset() {
@@ -34,15 +36,52 @@ func (kb *KB11) run() {
 		switch t := t.(type) {
 		case trap:
 			kb.trapat(t.vec)
+		case interrupt:
+			if t.vec&1 == 1 {
+				panic("Thou darst calling interrupt() with an odd vector number?")
+			}
+			// fast path
+			if kb.interrupts[0].vec == 0 {
+				kb.interrupts[0].vec = t.vec
+				kb.interrupts[0].pri = t.pri
+				return
+			}
+			var i int
+			for ; i < len(kb.interrupts); i++ {
+				if kb.interrupts[i].vec == 0 || kb.interrupts[i].pri < t.pri {
+					break
+				}
+			}
+			for ; i < len(kb.interrupts); i++ {
+				if kb.interrupts[i].vec == 0 || kb.interrupts[i].vec >= t.vec {
+					break
+				}
+			}
+			if i == len(kb.interrupts) {
+				panic("interrupt table full")
+			}
+			for j := i + 1; j < len(kb.interrupts); j++ {
+				kb.interrupts[j] = kb.interrupts[j-1]
+			}
+			kb.interrupts[i].vec = t.vec
+			kb.interrupts[i].pri = t.pri
 		default:
 			panic(t)
 		}
 	}()
 
 	for {
+		if kb.interrupts[0].vec > 0 && kb.interrupts[0].pri >= kb.priority() {
+			kb.trapat(kb.interrupts[0].vec)
+			copy(kb.interrupts[:8], kb.interrupts[1:])
+			kb.interrupts[7].vec = 0
+			kb.interrupts[7].pri = 0
+		}
+
 		kb.step()
 		kb.unibus.rk11.step()
 		kb.unibus.cons.step()
+		kb.unibus.lineclock.tick()
 	}
 }
 
@@ -983,7 +1022,7 @@ func (kb *KB11) trapat(vec uint16) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("trap: %03o\n", vec)
+	// fmt.Printf("trap: %03o\n", vec)
 
 	psw := kb.psw
 	kb.kernelmode()

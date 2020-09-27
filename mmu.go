@@ -10,9 +10,9 @@ type page struct {
 
 func (p *page) addr() addr18 { return addr18(p.par & 07777) }
 func (p *page) len() uint16  { return (p.pdr >> 8) & 0x7f }
-func (p *page) read() bool   { return p.pdr&2 > 0 }
-func (p *page) write() bool  { return p.pdr&6 > 0 }
-func (p *page) ed() bool     { return p.pdr&8 > 0 }
+func (p *page) read() bool   { return p.pdr&2 == 2 }
+func (p *page) write() bool  { return p.pdr&6 == 6 }
+func (p *page) ed() bool     { return p.pdr&8 == 8 }
 
 type KT11 struct {
 	SR0, SR1, SR2 uint16
@@ -23,7 +23,7 @@ func (kt *KT11) decode(wr bool, a, mode uint16) addr18 {
 	if kt.SR0&01 == 0 {
 		addr := addr18(a)
 		if addr > 0167777 {
-			addr += 0600000
+			return addr + 0600000
 		}
 		//fmt.Printf("decode: fast %06o -> %06o\n", a, addr)
 		return addr
@@ -69,12 +69,12 @@ func (kt *KT11) decode(wr bool, a, mode uint16) addr18 {
 		kt.pages[i].pdr |= 1 << 6
 	}
 	aa := ((addr18(block) + kt.pages[i].addr()) << 6) + disp
-	fmt.Printf("decode: slow %06o -> %06o\n", a, aa)
+	// fmt.Printf("decode: slow %06o -> %06o\n", a, aa)
 	return aa
 }
 
-func (kt KT11) write16(addr addr18, v uint16) {
-	fmt.Printf("kt11:write16: %06o %06o\n", addr, v)
+func (kt *KT11) write16(addr addr18, v uint16) {
+	// fmt.Printf("kt11:write16: %06o %06o\n", addr, v)
 	i := (addr & 017) >> 1
 	switch addr & ^addr18(037) {
 	case 0772300:
@@ -91,7 +91,7 @@ func (kt KT11) write16(addr addr18, v uint16) {
 	}
 }
 
-func (kt KT11) read16(addr addr18) uint16 {
+func (kt *KT11) read16(addr addr18) uint16 {
 	// fmt.Printf("kt11:read16: %06o\n", addr)
 	i := (addr & 017) >> 1
 	switch addr & ^addr18(037) {

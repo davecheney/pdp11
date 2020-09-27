@@ -29,14 +29,13 @@ func (u *UNIBUS) read16(addr addr18) uint16 {
 		return u.rk11.read16(addr)
 	case 0777500:
 		switch addr {
+		case 0777546:
+			return u.lineclock.read16(addr)
 		case 0777572:
-			fmt.Printf("unibus:read16: %06o\n", addr)
 			return u.mmu.SR0
 		case 0777574:
-			fmt.Printf("unibus:read16: %06o\n", addr)
 			return u.mmu.SR1
 		case 0777576:
-			fmt.Printf("unibus:read16: %06o\n", addr)
 			return u.mmu.SR2
 		default:
 			return u.cons.read16(addr)
@@ -61,15 +60,15 @@ func (u *UNIBUS) write16(addr addr18, v uint16) {
 		u.rk11.write16(addr, v)
 	case 0777500:
 		switch addr {
+		case 0777546:
+			u.lineclock.write16(addr, v)
 		case 0777572:
-			fmt.Printf("unibus:write16: %06o %06o\n", addr, v)
 			u.mmu.SR0 = v
 		case 0777574:
-			fmt.Printf("unibus:write16: %06o %06o\n", addr, v)
 			u.mmu.SR1 = v
 		case 0777576:
-			fmt.Printf("unibus:write16: %06o %06o\n", addr, v)
 			u.mmu.SR2 = v
+
 		default:
 			u.cons.write16(addr, v)
 		}

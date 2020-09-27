@@ -8,7 +8,7 @@ type KW11 struct {
 }
 
 func (kw *KW11) write16(addr addr18, v uint16) {
-	fmt.Printf("kw11:write16: %06o %06o\n", addr, v)
+	// fmt.Printf("kw11:write16: %06o %06o\n", addr, v)
 	switch addr {
 	case 0777546:
 		kw.csr = v
