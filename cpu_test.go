@@ -795,6 +795,85 @@ func TestASLB(t *testing.T) {
 	}
 }
 
+func TestASH(t *testing.T) {
+	is := is.New(t)
+	var cpu KB11
+	for s := 0; s < 16; s++ {
+		for d := 0; d < 64; d++ {
+			src, dst := uint16(1)<<s, uint16(d)
+			cpu.R[0] = src
+			cpu.R[1] = dst
+			cpu.Load(002000, 0072001) // ASH R0, R1
+			cpu.R[7] = 002000
+			cpu.step()
+			t.Logf("R0: %06o, R1: %06o", src, dst)
+			switch dst & 040 {
+			case 000:
+				// positive is shift left
+				shift := dst & 037
+				result := src << shift
+				is.Equal(cpu.R[0], result)
+				is.Equal(cpu.n(), result&0x8000 > 0)
+				is.Equal(cpu.z(), result == 0)
+				is.Equal(cpu.v(), (result&0x8000 > 0) != (src&0x8000 > 0))
+				is.Equal(cpu.c(), src&(1<<(16-shift)) > 0)
+			case 040:
+				// negative is shift right
+				shift := 077 ^ dst + 1
+				result := uint16(int16(src) >> shift)
+				is.Equal(cpu.R[0], result)
+				is.Equal(cpu.n(), result&0x8000 > 0)
+				is.Equal(cpu.z(), result == 0)
+				is.Equal(cpu.v(), (result&0x8000 > 0) != (src&0x8000 > 0))
+				is.Equal(cpu.c(), src>>(shift-1) == 1)
+			default:
+				t.Fatal("impossible shift")
+			}
+		}
+	}
+}
+
+func TestASHC(t *testing.T) {
+	is := is.New(t)
+	var cpu KB11
+	for s := 0; s < 32; s++ {
+		for d := 0; d < 64; d++ {
+			reg1, reg2, dst := uint16((uint32(1)<<s)>>16), uint16(1<<s), uint16(d)
+			cpu.R[0] = reg1
+			cpu.R[1] = reg2
+			cpu.R[2] = dst
+			cpu.Load(002000, 0073002) // ASHC R0, R1
+			cpu.R[7] = 002000
+			cpu.step()
+			t.Logf("R0: %06o, R1: %06o, R2: %06o", reg1, reg2, dst)
+			switch dst & 040 {
+			case 000:
+				// positive is shift left
+				shift := dst & 037
+				result := (uint32(reg1)<<16 | uint32(reg2)) << shift
+				is.Equal(cpu.R[0], uint16(result>>16))
+				is.Equal(cpu.R[1], uint16(result))
+				is.Equal(cpu.n(), result&0x80000000 > 0)
+				is.Equal(cpu.z(), result == 0)
+				is.Equal(cpu.v(), (result&0x80000000 > 0) != (reg1&0x8000 > 0))
+				is.Equal(cpu.c(), (uint32(reg1)<<16|uint32(reg2))&(1<<(32-shift)) > 0)
+			case 040:
+				// negative is shift right
+				shift := 077 ^ dst + 1
+				result := uint32(int32((uint32(reg1)<<16 | uint32(reg2))) >> shift)
+				is.Equal(cpu.R[0], uint16(result>>16))
+				is.Equal(cpu.R[1], uint16(result))
+				is.Equal(cpu.n(), result&0x80000000 > 0)
+				is.Equal(cpu.z(), result == 0)
+				is.Equal(cpu.v(), (result&0x80000000 > 0) != (reg1&0x8000 > 0))
+				is.Equal(cpu.c(), (uint32(reg1)<<16|uint32(reg2))>>(shift-1) == 1)
+			default:
+				t.Fatal("impossible shift")
+			}
+		}
+	}
+}
+
 func BenchmarkADD(b *testing.B) {
 	var cpu KB11
 	cpu.Load(0002000,

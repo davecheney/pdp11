@@ -909,26 +909,26 @@ func (kb *KB11) DIV(instr uint16) {
 	}
 }
 
+// ASH 072RSS
 func (kb *KB11) ASH(instr uint16) {
-	val1 := kb.R[(instr>>6)&7]
-	da := kb.DA(instr)
-	val2 := kb.memread(2, da) & 077
+	reg := kb.R[(instr>>6)&7]
+	shift := kb.memread(2, kb.DA(instr)) & 077
 	kb.psw &= 0xFFF0
 	var sval uint16
-	if val2&040 > 0 {
-		val2 = (077 ^ val2) + 1
-		if val1&0100000 > 0 {
-			sval = 0xFFFF ^ (0xFFFF >> val2)
-			sval |= val1 >> val2
+	if shift&040 > 0 {
+		shift = (077 ^ shift) + 1
+		if reg&0100000 > 0 {
+			sval = 0xFFFF ^ (0xFFFF >> shift)
+			sval |= reg >> shift
 		} else {
-			sval = val1 >> val2
+			sval = reg >> shift
 		}
-		if val1&(1<<(val2-1)) > 0 {
+		if reg&(1<<(shift-1)) > 0 {
 			kb.psw |= FLAGC
 		}
 	} else {
-		sval = (val1 << val2)
-		if val1&(1<<(16-val2)) > 0 {
+		sval = reg << shift
+		if reg&(1<<(16-shift)) > 0 {
 			kb.psw |= FLAGC
 		}
 	}
@@ -936,10 +936,10 @@ func (kb *KB11) ASH(instr uint16) {
 	if sval == 0 {
 		kb.psw |= FLAGZ
 	}
-	if sval&0100000 > 0 {
+	if sval&0x8000 > 0 {
 		kb.psw |= FLAGN
 	}
-	if (sval&0100000)^(val1&0100000) > 0 {
+	if (sval&0x8000)^(reg&0x8000) > 0 {
 		kb.psw |= FLAGV
 	}
 }
