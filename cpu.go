@@ -696,23 +696,22 @@ func (kb *KB11) ASR(l int, instr uint16) {
 
 func (kb *KB11) ASL(l int, instr uint16) {
 	da := kb.DA(instr)
-	// TODO(dfc) doesn't need to be an sval
-	sval := kb.memread(l, da)
+	dst := kb.memread(l, da)
+	result := (dst << 1) & max(l)
+	kb.memwrite(l, da, result)
 	kb.psw &= 0xFFF0
-	if sval&msb(l) > 0 {
-		kb.psw |= FLAGC
-	}
-	if sval&(msb(l)>>1) > 0 {
+	if result&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if (sval^(sval<<1))&msb(l) > 0 {
-		kb.psw |= FLAGV
-	}
-	sval = (sval << 1) & max(l)
-	if sval == 0 {
+	if result&max(l) == 0 {
 		kb.psw |= FLAGZ
 	}
-	kb.memwrite(l, da, sval)
+	if result&msb(l) > 0 {
+		kb.psw |= FLAGC
+	}
+	if kb.c() != kb.n() {
+		kb.psw |= FLAGV
+	}
 }
 
 // MARK 0064NN
