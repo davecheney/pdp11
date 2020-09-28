@@ -715,6 +715,48 @@ func TestXOR(t *testing.T) {
 	}
 }
 
+func TestASR(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0006200) // ASR R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		result := dst&0x8000 | dst>>1
+		is.Equal(cpu.R[0], result)
+		is.Equal(cpu.n(), (result)&0x8000 > 0)
+		is.Equal(cpu.z(), (result) == 0)
+		is.Equal(cpu.v(), (dst&1 == 1) != (result&0x8000 > 0))
+		is.Equal(cpu.c(), (dst&1) == 1)
+	}
+}
+
+func TestASRB(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0106200) // ASRB R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		result := uint16(uint8(int8(dst) / 2))
+		is.Equal(cpu.R[0]&0xff, result)
+		is.Equal(cpu.n(), dst&0x80 > 0)
+		is.Equal(cpu.z(), (result) == 0)
+		is.Equal(cpu.v(), (dst&1 == 1) != (result&0x80 > 0))
+		is.Equal(cpu.c(), (dst&1) == 1)
+	}
+}
+
 func BenchmarkADD(b *testing.B) {
 	var cpu KB11
 	cpu.Load(0002000,

@@ -37,6 +37,7 @@ func (kb *KB11) run() {
 		case trap:
 			kb.trapat(t.vec)
 		case interrupt:
+			fmt.Printf("interrupt: vec: %03o pri: %03o\n", t.vec, t.pri)
 			if t.vec&1 == 1 {
 				panic("Thou darst calling interrupt() with an odd vector number?")
 			}
@@ -675,22 +676,22 @@ func (kb *KB11) ROL(l int, instr uint16) {
 
 func (kb *KB11) ASR(l int, instr uint16) {
 	da := kb.DA(instr)
-	uval := kb.memread(l, da)
+	dst := kb.memread(l, da)
+	result := (dst&msb(l) | dst>>1) & max(l)
+	kb.memwrite(l, da, result)
 	kb.psw &= 0xFFF0
-	if uval&1 > 0 {
-		kb.psw |= FLAGC
-	}
-	if uval&msb(l) > 0 {
+	if result&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if (uval & msb(l)) != (uval & 1) {
-		kb.psw |= FLAGV
-	}
-	uval = (uval & msb(l)) | (uval >> 1)
-	if uval == 0 {
+	if result&max(l) == 0 {
 		kb.psw |= FLAGZ
 	}
-	kb.memwrite(l, da, uval)
+	if dst&1 == 1 {
+		kb.psw |= FLAGC
+	}
+	if kb.n() != kb.c() {
+		kb.psw |= FLAGV
+	}
 }
 
 func (kb *KB11) ASL(l int, instr uint16) {
@@ -980,7 +981,7 @@ func (kb *KB11) ASHC(instr uint16) {
 	}
 }
 
-// XOR 064RDD
+// XOR 074RDD
 func (kb *KB11) XOR(instr uint16) {
 	reg := kb.R[(instr>>6)&7]
 	da := kb.DA(instr)
