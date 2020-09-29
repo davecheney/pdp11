@@ -68,7 +68,6 @@ func (u *UNIBUS) write16(addr addr18, v uint16) {
 			u.mmu.SR1 = v
 		case 0777576:
 			u.mmu.SR2 = v
-
 		default:
 			u.cons.write16(addr, v)
 		}

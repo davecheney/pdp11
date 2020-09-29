@@ -135,10 +135,7 @@ func (rk *RK11) readwrite() {
 	}
 
 	w := ((rk.rkcs >> 1) & 7) == 1
-	if true {
-		fmt.Printf("rk11: step: RKCS: %06o RKBA: %06o RKWC: %06o cylinder: %03o surface: %03o sector: %03o write: %v\n",
-			rk.rkcs, rk.rkba, rk.rkwc, rk.cylinder, rk.surface, rk.sector, w)
-	}
+	//	fmt.Printf("rk11: step: RKCS: %06o RKBA: %06o RKWC: %06o cylinder: %03o surface: %03o sector: %03o write: %v\n", rk.rkcs, rk.rkba, rk.rkwc, rk.cylinder, rk.surface, rk.sector, w)
 
 	for i := 0; i < 256 && rk.rkwc != 0; i++ {
 		if w {
@@ -193,6 +190,7 @@ func (rk *RK11) write16(a addr18, v uint16) {
 }
 
 func (rk *RK11) reset() {
+	fmt.Println("rk11: reset")
 	rk.rkds = 04700 // Set bits 6, 7, 8, 11
 	rk.rker = 0
 	rk.rkcs = 0200

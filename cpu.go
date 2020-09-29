@@ -35,6 +35,7 @@ func (kb *KB11) run() {
 		t := recover()
 		switch t := t.(type) {
 		case trap:
+			fmt.Printf("trap: vec: %03o\n", t.vec)
 			kb.trapat(t.vec)
 		case interrupt:
 			fmt.Printf("interrupt: vec: %03o pri: %03o\n", t.vec, t.pri)
@@ -721,40 +722,35 @@ func (kb *KB11) MARK(instr uint16) {
 	kb.R[5] = kb.pop()
 }
 
+// MFPI 0065SS
 func (kb *KB11) MFPI(instr uint16) {
-	da := kb.DA(instr)
 	var uval uint16
-	if da == 0170006 {
-		if (kb.currentmode() == 3) && (kb.previousmode() == 3) {
-			uval = kb.R[6]
+	if !(instr&0x38 > 0) {
+		reg := instr & 7
+		if (reg != 6) || (kb.currentmode() == kb.previousmode()) {
+			uval = kb.R[reg]
 		} else {
 			uval = kb.stackpointer[kb.previousmode()]
 		}
-	} else if isReg(da) {
-		fmt.Printf("invalid MFPI instruction\n")
-		kb.printstate()
-		os.Exit(1)
 	} else {
+		da := kb.DA(instr)
 		uval = kb.unibus.read16(kb.mmu.decode(false, da, kb.previousmode()))
 	}
 	kb.push(uval)
 	kb.setNZ(2, uval)
 }
 
+// MTPI 0066DD
 func (kb *KB11) MTPI(instr uint16) {
-	da := kb.DA(instr)
 	uval := kb.pop()
-	if da == 0170006 {
-		if (kb.currentmode() == 3) && (kb.previousmode() == 3) {
-			kb.R[6] = uval
+	if !(instr&0x38 > 0) {
+		reg := instr & 7
+		if (reg != 6) || (kb.currentmode() == kb.previousmode()) {
+			kb.R[reg] = uval
 		} else {
 			kb.stackpointer[kb.previousmode()] = uval
 		}
-	} else if isReg(da) {
-		fmt.Printf("invalid MTPI instrution\n")
-		kb.printstate()
-		os.Exit(1)
-	} else {
+		da := kb.DA(instr)
 		kb.unibus.write16(kb.mmu.decode(true, da, kb.previousmode()), uval)
 	}
 	kb.setNZ(2, uval)
@@ -1067,10 +1063,13 @@ func (kb *KB11) write(l int, va, v uint16) {
 		kb.write16(va, v)
 		return
 	}
-	if va&1 > 0 {
-		kb.write16(va&^1, (kb.read16(va&^1)&0xFF)|(v&0xFF)<<8)
-	} else {
-		kb.write16(va, (kb.read16(va)&0xFF00)|(v&0xFF))
+	switch va & 1 {
+	case 1:
+		mem := kb.read16(va&^1)&0xff | v<<8
+		kb.write16(va&^1, mem)
+	default:
+		mem := kb.read16(va)&0xff | v&0xff
+		kb.write16(va, mem)
 	}
 }
 
