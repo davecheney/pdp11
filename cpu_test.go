@@ -438,6 +438,78 @@ func TestRORB(t *testing.T) {
 	}
 }
 
+func TestROL(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0006100) // ROL R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		result := dst << 1
+		is.Equal(cpu.R[0], result)
+		is.Equal(cpu.n(), result&0x8000 > 0)
+		is.Equal(cpu.z(), result == 0)
+		is.Equal(cpu.v(), cpu.n() != cpu.c())
+		is.Equal(cpu.c(), dst&0x8000 > 0)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw |= FLAGC
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		result := dst<<1 | 1
+		is.Equal(cpu.R[0], result)
+		is.Equal(cpu.n(), result&0x8000 > 0)
+		is.Equal(cpu.z(), result == 0)
+		is.Equal(cpu.v(), cpu.n() != cpu.c())
+		is.Equal(cpu.c(), dst&0x8000 > 0)
+	}
+}
+
+func TestROLB(t *testing.T) {
+	is := is.New(t)
+
+	var cpu KB11
+	cpu.Load(002000, 0106100) // ROLB R0
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw &= ^uint16(FLAGC)
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		result := dst << 1 & 0xff
+		is.Equal(cpu.R[0]&0xff, result)
+		is.Equal(cpu.n(), result&0x80 > 0)
+		is.Equal(cpu.z(), result&0xff == 0)
+		is.Equal(cpu.v(), cpu.n() != cpu.c())
+		is.Equal(cpu.c(), dst&0x80 > 0)
+	}
+
+	for d := 0; d < 16; d++ {
+		dst := uint16(1) << d
+		cpu.R[0] = dst
+		cpu.R[7] = 002000
+		cpu.psw |= FLAGC
+		cpu.step()
+		t.Logf("R0: %06o", dst)
+		result := (dst<<1 | 1) & 0xff
+		is.Equal(cpu.R[0]&0xff, result)
+		is.Equal(cpu.n(), result&0x80 > 0)
+		is.Equal(cpu.z(), result&0xff == 0)
+		is.Equal(cpu.v(), cpu.n() != cpu.c())
+		is.Equal(cpu.c(), dst&0x80 > 0)
+	}
+}
+
 func TestSXT(t *testing.T) {
 	is := is.New(t)
 
