@@ -28,6 +28,7 @@ func (r *runCmd) Run(ctx *kong.Context) error {
 	cpu.unibus.rk11.unibus = &cpu.unibus
 	cpu.unibus.mmu = &cpu.mmu
 	cpu.unibus.cons.Input = make(chan byte, 0)
+	cpu.unibus.lineclock.ticks = time.Tick(999 * time.Millisecond)
 	cpu.Reset()
 	if err := cpu.unibus.rk11.Mount(0, r.RK0); err != nil {
 		return err
@@ -39,7 +40,7 @@ func (r *runCmd) Run(ctx *kong.Context) error {
 }
 
 func stdin(c chan uint8) {
-	for _, v := range "unix\n" {
+	for _, v := range "rpunix\n" {
 		c <- byte(v)
 		time.Sleep(200 * time.Millisecond)
 	}

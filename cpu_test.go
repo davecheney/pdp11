@@ -111,7 +111,7 @@ func TestSUB(t *testing.T) {
 			is.Equal(cpu.n(), (dst-src)&0x8000 > 0)
 			is.Equal(cpu.z(), dst-src == 0)
 			is.Equal(cpu.v(), (((src^dst)&0x8000 > 0) && (!((dst^(dst-src))&0x8000 > 0))))
-			is.Equal(cpu.c(), !(dst+(^src)+1 < 0xffff))
+			is.Equal(cpu.c(), src > dst)
 		}
 	}
 }
@@ -524,7 +524,7 @@ func TestSXT(t *testing.T) {
 		t.Logf("R0: %06o", dst)
 		is.Equal(cpu.R[0], uint16(0))
 		is.Equal(cpu.n(), false)
-		is.Equal(cpu.z(), true)
+		is.Equal(cpu.z(), !cpu.n())
 		is.Equal(cpu.v(), false)
 	}
 
@@ -537,7 +537,7 @@ func TestSXT(t *testing.T) {
 		t.Logf("R0: %06o", dst)
 		is.Equal(cpu.R[0], uint16(0xffff))
 		is.Equal(cpu.n(), true)
-		is.Equal(cpu.z(), false)
+		is.Equal(cpu.z(), !cpu.n())
 		is.Equal(cpu.v(), false)
 	}
 }

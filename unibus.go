@@ -9,7 +9,7 @@ type addr18 uint32
 type UNIBUS struct {
 
 	// 128 KW of core memory minus 4 KW of io page.
-	// [000000, 767777)
+	// [000000, 760000)
 	core [(128 - 4) << 10]uint16
 
 	rk11      RK11
@@ -21,7 +21,7 @@ type UNIBUS struct {
 // read16 reads addr from the UNIBUS.
 func (u *UNIBUS) read16(addr addr18) uint16 {
 	// fmt.Printf("unibus: read16: %06o\n", addr)
-	if int(addr) < len(u.core)<<1 {
+	if addr < 0760000 {
 		return u.core[addr>>1]
 	}
 	switch addr & ^addr18(077) {
@@ -50,7 +50,7 @@ func (u *UNIBUS) read16(addr addr18) uint16 {
 
 // write16 writes v to addr on the UNIBUS.
 func (u *UNIBUS) write16(addr addr18, v uint16) {
-	if int(addr) < len(u.core)<<1 {
+	if addr < 0760000 {
 		u.core[addr>>1] = v
 		return
 	}
