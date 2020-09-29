@@ -473,9 +473,9 @@ func (kb *KB11) RTS(instr uint16) {
 // SWAB 0003DD
 func (kb *KB11) SWAB(instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(2, da)
+	dst := kb.read(2, da)
 	dst = (dst << 8) | (dst >> 8)
-	kb.memwrite(2, da, dst)
+	kb.write(2, da, dst)
 	kb.psw &= 0xFFF0
 	if dst&0xff00 == 0 {
 		kb.psw |= FLAGZ
@@ -511,15 +511,15 @@ func (kb *KB11) JSR(instr uint16) {
 func (kb *KB11) CLR(l int, instr uint16) {
 	kb.psw &= 0xFFF0
 	kb.psw |= FLAGZ
-	kb.memwrite(l, kb.DA(instr), 0)
+	kb.write(l, kb.DA(instr), 0)
 }
 
 // COM 0051DD, COMB 1051DD
 func (kb *KB11) COM(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	dst = ^dst
-	kb.memwrite(l, da, dst)
+	kb.write(l, da, dst)
 	kb.psw &= 0xFFF0
 	if dst&msb(l) == 0 {
 		kb.psw |= FLAGN
@@ -534,27 +534,27 @@ func (kb *KB11) COM(l int, instr uint16) {
 // INC 0052DD, INCB 1052DD
 func (kb *KB11) INC(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	dst = (dst + 1) & max(l)
-	kb.memwrite(l, da, dst)
+	kb.write(l, da, dst)
 	kb.setNZV(l, dst)
 }
 
 // DEC 0053DD, DECB 1053DD
 func (kb *KB11) DEC(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	dst = (dst - 1) & max(l)
-	kb.memwrite(l, da, dst)
+	kb.write(l, da, dst)
 	kb.setNZV(l, dst)
 }
 
 // NEG 0054DD, NEGB 1054DD
 func (kb *KB11) NEG(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	dst = -dst & max(l)
-	kb.memwrite(l, da, dst)
+	kb.write(l, da, dst)
 	kb.psw &= 0xFFF0
 	if dst&msb(l) > 0 {
 		kb.psw |= FLAGN
@@ -571,11 +571,11 @@ func (kb *KB11) NEG(l int, instr uint16) {
 
 func (kb *KB11) ADC(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	switch kb.psw & FLAGC {
 	case FLAGC:
 		result := (dst + kb.psw&FLAGC)
-		kb.memwrite(l, da, result)
+		kb.write(l, da, result)
 		kb.psw &= 0xFFF0
 		kb.setNZ(l, result)
 		if result&max(l) == max(l) {
@@ -591,10 +591,10 @@ func (kb *KB11) ADC(l int, instr uint16) {
 
 func (kb *KB11) SBC(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	result := dst - kb.psw&FLAGC
 	if kb.c() {
-		kb.memwrite(l, da, result)
+		kb.write(l, da, result)
 		kb.psw &= 0xFFF0
 		if result&msb(l) > 0 {
 			kb.psw |= FLAGN
@@ -621,20 +621,20 @@ func (kb *KB11) SBC(l int, instr uint16) {
 
 // TST 0057DD, TSTB 1057DD
 func (kb *KB11) TST(l int, instr uint16) {
-	dst := kb.memread(l, kb.DA(instr))
+	dst := kb.read(l, kb.DA(instr))
 	kb.psw &= 0xFFF0
 	kb.setNZ(l, dst)
 }
 
 func (kb *KB11) ROR(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	result := uint32(dst >> 1)
 	if kb.c() {
 		// shift carry in from the left
 		result |= uint32(msb(l))
 	}
-	kb.memwrite(l, da, uint16(result))
+	kb.write(l, da, uint16(result))
 	kb.psw &= 0xFFF0
 	if dst&1 > 0 {
 		// shift lsb into carry
@@ -654,7 +654,7 @@ func (kb *KB11) ROR(l int, instr uint16) {
 
 func (kb *KB11) ROL(l int, instr uint16) {
 	da := kb.DA(instr)
-	sval := kb.memread(l, da) << 1
+	sval := kb.read(l, da) << 1
 	if kb.c() {
 		sval |= 1
 	}
@@ -672,14 +672,14 @@ func (kb *KB11) ROL(l int, instr uint16) {
 		kb.psw |= FLAGV
 	}
 	sval &= max(l)
-	kb.memwrite(l, da, sval)
+	kb.write(l, da, sval)
 }
 
 func (kb *KB11) ASR(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	result := (dst&msb(l) | dst>>1) & max(l)
-	kb.memwrite(l, da, result)
+	kb.write(l, da, result)
 	kb.psw &= 0xFFF0
 	if result&msb(l) > 0 {
 		kb.psw |= FLAGN
@@ -697,9 +697,9 @@ func (kb *KB11) ASR(l int, instr uint16) {
 
 func (kb *KB11) ASL(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	result := (dst << 1) & max(l)
-	kb.memwrite(l, da, result)
+	kb.write(l, da, result)
 	kb.psw &= 0xFFF0
 	if result&msb(l) > 0 {
 		kb.psw |= FLAGN
@@ -766,13 +766,13 @@ func (kb *KB11) SXT(instr uint16) {
 	}
 
 	result := n()
-	kb.memwrite(2, kb.DA(instr), result)
+	kb.write(2, kb.DA(instr), result)
 	kb.setNZ(2, result)
 }
 
 // MOV 01SSDD, MOVB 11SSDD
 func (kb *KB11) MOV(len int, instr uint16) {
-	src := kb.memread(len, kb.SA(instr))
+	src := kb.read(len, kb.SA(instr))
 	if !(instr&0x38 > 0) && (len == 1) {
 		if src&0200 > 0 {
 			// Special case: movb sign extends register to word size
@@ -782,15 +782,15 @@ func (kb *KB11) MOV(len int, instr uint16) {
 		kb.setNZ(len, src)
 		return
 	}
-	kb.memwrite(len, kb.DA(instr), src)
+	kb.write(len, kb.DA(instr), src)
 	kb.setNZ(len, src)
 }
 
 // CMP 02SSDD, CMPB 12SSDD
 func (kb *KB11) CMP(l int, instr uint16) {
-	src := kb.memread(l, kb.SA(instr))
+	src := kb.read(l, kb.SA(instr))
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	result := (src - dst) & max(l)
 	kb.psw &= 0xFFF0
 	if result == 0 {
@@ -810,39 +810,39 @@ func (kb *KB11) CMP(l int, instr uint16) {
 
 // BIT 03SSDD, BITB 13SSDD
 func (kb *KB11) BIT(l int, instr uint16) {
-	src := kb.memread(l, kb.SA(instr))
-	dst := kb.memread(l, kb.DA(instr))
+	src := kb.read(l, kb.SA(instr))
+	dst := kb.read(l, kb.DA(instr))
 	dst = src & dst
 	kb.setNZ(l, dst)
 }
 
 // BIC 04SSDD, BICB 14SSDD
 func (kb *KB11) BIC(l int, instr uint16) {
-	src := kb.memread(l, kb.SA(instr))
+	src := kb.read(l, kb.SA(instr))
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	dst = (^src) & dst
-	kb.memwrite(l, da, dst)
+	kb.write(l, da, dst)
 	kb.setNZ(l, dst)
 }
 
 // BIS 05SSDD, BISB 15SSDD
 func (kb *KB11) BIS(l int, instr uint16) {
-	src := kb.memread(l, kb.SA(instr))
+	src := kb.read(l, kb.SA(instr))
 	da := kb.DA(instr)
-	dst := kb.memread(l, da)
+	dst := kb.read(l, da)
 	dst |= src
-	kb.memwrite(l, da, dst)
+	kb.write(l, da, dst)
 	kb.setNZ(l, dst)
 }
 
 // ADD 06SSDD
 func (kb *KB11) ADD(instr uint16) {
-	src := kb.memread(2, kb.SA(instr))
+	src := kb.read(2, kb.SA(instr))
 	da := kb.DA(instr)
-	dst := kb.memread(2, da)
+	dst := kb.read(2, da)
 	sum := src + dst
-	kb.memwrite(2, da, sum)
+	kb.write(2, da, sum)
 	kb.psw &= 0xFFF0
 	kb.setNZ(2, sum)
 	if (!((src^dst)&0x8000 > 0)) && ((dst^sum)&0x8000 > 0) {
@@ -860,7 +860,7 @@ func (kb *KB11) MUL(instr uint16) {
 		val1 = -((0xFFFF ^ val1) + 1)
 	}
 	da := kb.DA(instr)
-	val2 := kb.memread(2, da)
+	val2 := kb.read(2, da)
 	if val2&0x8000 > 0 {
 		val2 = -((0xFFFF ^ val2) + 1)
 	}
@@ -882,7 +882,7 @@ func (kb *KB11) MUL(instr uint16) {
 func (kb *KB11) DIV(instr uint16) {
 	val1 := uint32(kb.R[(instr>>6)&7])<<16 | uint32(kb.R[((instr>>6)&7)|1])
 	da := kb.DA(instr)
-	val2 := uint32(kb.memread(2, da))
+	val2 := uint32(kb.read(2, da))
 	kb.psw &= 0xFFF0
 	if val2 == 0 {
 		kb.psw |= FLAGC
@@ -908,7 +908,7 @@ func (kb *KB11) DIV(instr uint16) {
 // ASH 072RSS
 func (kb *KB11) ASH(instr uint16) {
 	reg := kb.R[(instr>>6)&7]
-	shift := kb.memread(2, kb.DA(instr)) & 077
+	shift := kb.read(2, kb.DA(instr)) & 077
 	kb.psw &= 0xFFF0
 	var sval uint16
 	if shift&040 > 0 {
@@ -943,7 +943,7 @@ func (kb *KB11) ASH(instr uint16) {
 func (kb *KB11) ASHC(instr uint16) {
 	val1 := uint32(kb.R[(instr>>6)&7])<<16 | uint32(kb.R[((instr>>6)&7)|1])
 	da := kb.DA(instr)
-	val2 := kb.memread(2, da) & 077
+	val2 := kb.read(2, da) & 077
 	kb.psw &= 0xFFF0
 	var sval uint32
 	if val2&040 > 0 {
@@ -980,9 +980,9 @@ func (kb *KB11) ASHC(instr uint16) {
 func (kb *KB11) XOR(instr uint16) {
 	reg := kb.R[(instr>>6)&7]
 	da := kb.DA(instr)
-	dst := kb.memread(2, da)
+	dst := kb.read(2, da)
 	dst = reg ^ dst
-	kb.memwrite(2, da, dst)
+	kb.write(2, da, dst)
 	kb.setNZ(2, dst)
 }
 
@@ -997,11 +997,11 @@ func (kb *KB11) SOB(instr uint16) {
 // SUB 16SSDD
 func (kb *KB11) SUB(instr uint16) {
 	// mask off top bit of instr so SA computes L=2
-	src := kb.memread(2, kb.SA(instr&0077777))
+	src := kb.read(2, kb.SA(instr&0077777))
 	da := kb.DA(instr)
-	dst := kb.memread(2, da)
+	dst := kb.read(2, da)
 	result := (dst + ^src) + 1
-	kb.memwrite(2, da, result)
+	kb.write(2, da, result)
 	kb.psw &= 0xFFF0
 	kb.setNZ(2, result)
 	if ((src^dst)&0x8000 > 0) && (!((dst^result)&0x8000 > 0)) {
@@ -1044,33 +1044,6 @@ func (kb *KB11) pop() uint16 {
 	val := kb.read16(kb.R[6])
 	kb.R[6] += 2
 	return val
-}
-
-func (kb *KB11) read(l int, va uint16) uint16 {
-	if l == 2 {
-		return kb.read16(va)
-	}
-	switch va & 1 {
-	case 1:
-		return kb.read16(va&^1) >> 8
-	default:
-		return kb.read16(va&^1) & 0xFF
-	}
-}
-
-func (kb *KB11) write(l int, va, v uint16) {
-	if l == 2 {
-		kb.write16(va, v)
-		return
-	}
-	switch va & 1 {
-	case 1:
-		mem := kb.read16(va&^1)&0xff | v<<8
-		kb.write16(va&^1, mem)
-	default:
-		mem := kb.read16(va)&0xff | v&0xff
-		kb.write16(va, mem)
-	}
 }
 
 func (kb *KB11) read16(va uint16) uint16 {
@@ -1138,14 +1111,22 @@ func (kb *KB11) DA(instr uint16) uint16 {
 	return addr
 }
 
-func (kb *KB11) memread(l int, a uint16) uint16 {
+func (kb *KB11) read(l int, a uint16) uint16 {
 	if isReg(a) {
 		return kb.R[a&7] & max(l)
 	}
-	return kb.read(l, a)
+	if l == 2 {
+		return kb.read16(a)
+	}
+	switch a & 1 {
+	case 1:
+		return kb.read16(a&^1) >> 8
+	default:
+		return kb.read16(a) & 0xFF
+	}
 }
 
-func (kb *KB11) memwrite(l int, a, v uint16) {
+func (kb *KB11) write(l int, a, v uint16) {
 	if isReg(a) {
 		r := a & 7
 		if l == 2 {
@@ -1156,7 +1137,18 @@ func (kb *KB11) memwrite(l int, a, v uint16) {
 		}
 		return
 	}
-	kb.write(l, a, v)
+	if l == 2 {
+		kb.write16(a, v)
+		return
+	}
+	switch a & 1 {
+	case 1:
+		mem := kb.read16(a&^1)&0xff | v<<8
+		kb.write16(a&^1, mem)
+	default:
+		mem := kb.read16(a)&0xff | v&0xff
+		kb.write16(a, mem)
+	}
 }
 
 // Set N & Z clearing V (C unchanged)
