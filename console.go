@@ -44,7 +44,7 @@ func (kl *KL11) read16(a addr18) uint16 {
 }
 
 func (kl *KL11) write16(a addr18, v uint16) {
-	fmt.Printf("kl11:write16: %06o %06o\n", a, v)
+	// fmt.Printf("kl11:write16: %06o %06o\n", a, v)
 	switch a {
 	case 0777560:
 		// 777560 Receive Control and Status register
@@ -80,10 +80,15 @@ func (kl *KL11) step() {
 		// receiver not busy, poll for character
 		select {
 		case c := <-kl.Input:
-			kl.rbuf = uint16(c & 0x7f)
-			kl.rcsr |= 0x80
-			if kl.rcsr&0x40 > 0 {
-				panic(interrupt{INTTTYIN, 4})
+			fmt.Fprintf(os.Stderr, "kl11:readchar: %02x\n", c)
+			switch c {
+
+			default:
+				kl.rbuf = uint16(c & 0x7f)
+				kl.rcsr |= 0x80
+				if kl.rcsr&0x40 > 0 {
+					panic(interrupt{INTTTYIN, 4})
+				}
 			}
 		default:
 		}
@@ -91,7 +96,10 @@ func (kl *KL11) step() {
 	if kl.xcsr&0x80 == 0 {
 		kl.xmitcount++
 		if kl.xmitcount > 32 {
-			os.Stderr.Write([]byte{byte(kl.xbuf & 0x7f)})
+			switch c := uint8(kl.xbuf & 0x7f); c {
+			default:
+				os.Stderr.Write([]byte{c})
+			}
 			kl.xcsr |= 0x80
 			if kl.xcsr&(1<<6) > 0 {
 				panic(interrupt{INTTTYOUT, 4})

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -24,6 +25,19 @@ type runCmd struct {
 }
 
 func (r *runCmd) Run(ctx *kong.Context) error {
+	fd := os.Stdin.Fd()
+	oldattr, err := tcget(fd)
+	if err != nil {
+		return err
+	}
+	defer tcset(fd, oldattr)
+
+	attr := *oldattr
+	// disable canonical mode processing in the line discipline driver
+	attr.Iflag &^= unix.ICRNL
+	attr.Lflag &^= unix.ECHO | unix.ICANON
+	tcset(fd, &attr)
+
 	cpu := KB11{}
 	cpu.unibus.rk11.unibus = &cpu.unibus
 	cpu.unibus.mmu = &cpu.mmu
@@ -40,10 +54,10 @@ func (r *runCmd) Run(ctx *kong.Context) error {
 }
 
 func stdin(c chan uint8) {
-	for _, v := range "rpunix\n" {
-		c <- byte(v)
-		time.Sleep(200 * time.Millisecond)
-	}
+	// for _, v := range "rpunix\n" {
+	// 	c <- byte(v)
+	// 	time.Sleep(200 * time.Millisecond)
+	// }
 	var b [1]byte
 	for {
 		n, _ := os.Stdin.Read(b[:])
