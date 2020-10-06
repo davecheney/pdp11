@@ -12,9 +12,9 @@ type KB11 struct {
 	pc uint16    // holds R[7] during instruction execution
 	R  [8]uint16 // R0-R7
 
-	psw                        uint16    // processor status word
-	stackpointer               [4]uint16 // Alternate R6 (kernel, super, illegal, user)
-	stacklimit, switchregister uint16
+	psw                                         uint16    // processor status word
+	stackpointer                                [4]uint16 // Alternate R6 (kernel, super, illegal, user)
+	stacklimit, switchregister, displayregister uint16
 
 	interrupts [8]struct{ vec, pri uint16 }
 }
@@ -38,7 +38,7 @@ func (kb *KB11) run() {
 			fmt.Printf("trap: vec: %03o\n", t.vec)
 			kb.trapat(t.vec)
 		case interrupt:
-			fmt.Printf("interrupt: vec: %03o pri: %03o\n", t.vec, t.pri)
+			defer fmt.Printf("interrupt queued: vec: %03o pri: %03o\n", t.vec, t.pri)
 			if t.vec&1 == 1 {
 				panic("Thou darst calling interrupt() with an odd vector number?")
 			}
@@ -74,6 +74,7 @@ func (kb *KB11) run() {
 
 	for {
 		if kb.interrupts[0].vec > 0 && kb.interrupts[0].pri >= kb.priority() {
+			fmt.Printf("interrupt: vec: %03o pri: %03o\n", kb.interrupts[0].vec, kb.interrupts[0].pri)
 			kb.trapat(kb.interrupts[0].vec)
 			copy(kb.interrupts[:8], kb.interrupts[1:])
 			kb.interrupts[7].vec = 0
@@ -99,7 +100,7 @@ func (kb *KB11) step() {
 	instr := kb.fetch16()
 
 	// if kb.mmu.SR0&1 > 0 {
-	// 	kb.printstate()
+	// kb.printstate()
 	// }
 
 	switch instr >> 12 { // xxSSDD Mostly double operand instructions
@@ -114,7 +115,7 @@ func (kb *KB11) step() {
 					kb.printstate()
 					os.Exit(1)
 				case 1: // WAIT 000001
-					panic("WAIT")
+					//panic("WAIT")
 					return
 				case 3: // BPT  000003
 					kb.trapat(014) // Trap 14 - BPT
@@ -807,8 +808,8 @@ func (kb *KB11) CMP(l int, instr uint16) {
 func (kb *KB11) BIT(l int, instr uint16) {
 	src := kb.read(l, kb.SA(instr))
 	dst := kb.read(l, kb.DA(instr))
-	dst = src & dst
-	kb.setNZ(l, dst)
+	result := src & dst
+	kb.setNZ(l, result)
 }
 
 // BIC 04SSDD, BICB 14SSDD
@@ -1023,7 +1024,10 @@ func (kb *KB11) trapat(vec uint16) {
 	kb.push(kb.R[7])
 
 	kb.R[7] = kb.read16(vec)
-	kb.writePSW(kb.read16(vec+2) | (kb.previousmode() << 12))
+	psw = kb.read16(vec + 2)
+	psw &^= (1<<13 | 1<<12)
+	psw |= kb.previousmode() << 12
+	kb.writePSW(psw)
 }
 
 func (kb *KB11) fetch16() uint16 {
@@ -1053,8 +1057,8 @@ func (kb *KB11) read16(va uint16) uint16 {
 	case 0777570:
 		return kb.switchregister
 	default:
-		if a&0777560 == 0777560 {
-			//		kb.printstate()
+		if a == 0777404 {
+			// kb.printstate()
 		}
 		return kb.unibus.read16(a)
 	}
@@ -1068,7 +1072,7 @@ func (kb *KB11) write16(va, v uint16) {
 	case 0777774:
 		kb.stacklimit = v
 	case 0777570:
-		kb.switchregister = v
+		kb.displayregister = v
 	default:
 		kb.unibus.write16(a, v)
 	}
@@ -1143,10 +1147,10 @@ func (kb *KB11) write(l int, a, v uint16) {
 	}
 	switch a & 1 {
 	case 1:
-		mem := kb.read16(a&^1)&0xff | v<<8
+		mem := v<<8 | kb.read16(a&^1)&0xff
 		kb.write16(a&^1, mem)
 	default:
-		mem := kb.read16(a)&0xff | v&0xff
+		mem := kb.read16(a)&0xff00 | v&0xff
 		kb.write16(a, mem)
 	}
 }

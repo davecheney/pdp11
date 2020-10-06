@@ -2,6 +2,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"time"
 
@@ -34,11 +35,15 @@ func (r *runCmd) Run(ctx *kong.Context) error {
 
 	attr := *oldattr
 	// disable canonical mode processing in the line discipline driver
-	attr.Iflag &^= unix.ICRNL
+	attr.Iflag &^= unix.INLCR | unix.ICRNL
+	attr.Iflag |= unix.ISTRIP | unix.INLCR
 	attr.Lflag &^= unix.ECHO | unix.ICANON
-	tcset(fd, &attr)
+	check(tcset(fd, &attr))
 
-	cpu := KB11{}
+	cpu := KB11{
+		switchregister: 0173030,
+	}
+
 	cpu.unibus.rk11.unibus = &cpu.unibus
 	cpu.unibus.mmu = &cpu.mmu
 	cpu.unibus.cons.Input = make(chan byte, 0)
@@ -64,5 +69,11 @@ func stdin(c chan uint8) {
 		if n > 0 {
 			c <- b[0]
 		}
+	}
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
 	}
 }

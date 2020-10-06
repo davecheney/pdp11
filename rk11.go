@@ -15,7 +15,7 @@ const (
 
 type RK05 struct {
 	buf []byte
-	pos int
+	pos uint32
 }
 
 func (rk *RK05) write16(v uint16) {
@@ -30,8 +30,8 @@ func (rk *RK05) read16() uint16 {
 }
 
 type RK11 struct {
-	rkds, rker, rkcs, rkwc, rkba     uint16
-	drive, sector, surface, cylinder uint32
+	rkds, rker, rkcs, rkwc, rkba, rkda uint16
+	drive, sector, surface, cylinder   uint32
 
 	units [8]RK05
 
@@ -48,19 +48,22 @@ func (rk *RK11) Mount(unit int, path string) error {
 }
 
 func (rk *RK11) read16(a addr18) uint16 {
-	switch a & 0x17 {
-	case 000:
+	//fmt.Printf("rk11:read16: %06o\n", a)
+	switch a {
+	case 0777400:
 		// 777400 Drive Status
 		return rk.rkds
-	case 002:
+	case 0777402:
 		// 777402 Error Register
 		return rk.rker
-	case 004:
+	case 0777404:
 		// 777404 Control Status
-		return rk.rkcs & 0xfffe // go bit is read only
-	case 006:
-		// 777406 Word Count
-		return rk.rkwc
+		return rk.rkcs & 0xfffe // go bit is write only
+	// case 0777406:
+	// 	// 777406 Word Count
+	// 	return rk.rkwc
+	case 0777412:
+		return rk.rkda
 	default:
 		fmt.Printf("rk11::read16 invalid read %06o\n", a)
 		panic(trap{INTBUS})
@@ -69,19 +72,23 @@ func (rk *RK11) read16(a addr18) uint16 {
 
 func (rk *RK11) rknotready() {
 	// fmt.Println("rk11: not ready")
-	rk.rkds &= ^uint16(1 << 6)
-	rk.rkcs &= ^uint16(1 << 7)
+	rk.rkds &^= 1 << 6
+	rk.rkcs &^= 1 << 7
 }
 
 func (rk *RK11) rkready() {
 	// fmt.Println("rk11: ready")
 	rk.rkds |= 1 << 6
 	rk.rkcs |= 1 << 7
-	rk.rkcs &= ^uint16(1) // no go
+	rk.rkcs &^= 1 // no go
+}
+
+func (rk *RK11) _go() bool {
+	return rk.rkcs&1 == 1
 }
 
 func (rk *RK11) step() {
-	if (rk.rkcs & 1) == 0 {
+	if !rk._go() {
 		// no GO bit
 		return
 	}
@@ -110,7 +117,6 @@ func (rk *RK11) step() {
 		rk.rker = 0
 		fallthrough
 	case 4: // Seek (and drive reset) - complete immediately
-		fmt.Printf("rk11: seek: cylinder: %03o sector: %03o\n", rk.cylinder, rk.sector)
 		rk.seek()
 		rk.rkcs &= ^uint16(0x2000) // Clear search complete - reset by rk11_seekEnd
 		rk.rkcs |= 0x80            // set done - ready to accept new command
@@ -122,7 +128,6 @@ func (rk *RK11) step() {
 	default:
 		panic(fmt.Sprintf("unimplemented RK05 operation %06o\n", ((rk.rkcs & 017) >> 1)))
 	}
-
 }
 
 func (rk *RK11) readwrite() {
@@ -135,7 +140,7 @@ func (rk *RK11) readwrite() {
 	}
 
 	w := ((rk.rkcs >> 1) & 7) == 1
-	//	fmt.Printf("rk11: step: RKCS: %06o RKBA: %06o RKWC: %06o cylinder: %03o surface: %03o sector: %03o write: %v\n", rk.rkcs, rk.rkba, rk.rkwc, rk.cylinder, rk.surface, rk.sector, w)
+	fmt.Printf("rk11: step: RKCS: %06o RKBA: %06o RKWC: %06o cylinder: %03o surface: %03o sector: %03o write: %v rker: %06o\n", rk.rkcs, rk.rkba, rk.rkwc, rk.cylinder, rk.surface, rk.sector, w, rk.rker)
 
 	for i := 0; i < 256 && rk.rkwc != 0; i++ {
 		if w {
@@ -164,25 +169,35 @@ func (rk *RK11) readwrite() {
 }
 
 func (rk *RK11) seek() {
-	rk.units[rk.drive].pos = (int(rk.cylinder)*24 + int(rk.surface*12) + int(rk.sector)) * 512
-	if rk.units[rk.drive].pos > len(rk.units[rk.drive].buf) {
+	rk.units[rk.drive].pos = (rk.cylinder*24 + rk.surface*12 + rk.sector) * 512
+	if rk.units[rk.drive].pos > uint32(len(rk.units[rk.drive].buf)) {
 		panic(fmt.Sprintf("rkstep: failed to seek\n"))
 	}
+	// fmt.Printf("rk11:seek: pos: %08x\n", rk.units[rk.drive].pos)
 }
 
 func (rk *RK11) write16(a addr18, v uint16) {
-	switch a & 017 {
-	case 004:
-		rk.rkcs = v & ^uint16(0xf080) | (rk.rkcs & 0xf080) // Bits 7 and 12 - 15 are read only
-	case 006:
+	fmt.Printf("rk11:write16: %06o %06o\n", a, v)
+	switch a {
+	case 0777404:
+		// RKCS
+		rk.rkcs &= 0xf080
+		rk.rkcs |= v & ^uint16(0xf080) // Bits 7 and 12 - 15 are read only
+		fmt.Printf("RKCS: %06o v: %06o\n", rk.rkcs, v)
+	case 0777406:
+		// RKWC
 		rk.rkwc = v
-	case 010:
+	case 0777410:
+		// RKBA
 		rk.rkba = v
-	case 012:
+	case 0777412:
+		// RKDA
+		rk.rkda = v
 		rk.drive = uint32(v >> 13)
 		rk.cylinder = uint32(v>>5) & 0377
 		rk.surface = uint32(v>>4) & 1
 		rk.sector = uint32(v & 15)
+		fmt.Printf("rk11:rkds: drive: %o, cylinder: %03o surface: %o, sector: %o\n", rk.drive, rk.cylinder, rk.surface, rk.sector)
 	default:
 		fmt.Printf("rk11::write16 invalid write %06o: %06o\n", a, v)
 		panic(trap{INTBUS})
@@ -196,6 +211,7 @@ func (rk *RK11) reset() {
 	rk.rkcs = 0200
 	rk.rkwc = 0
 	rk.rkba = 0
+	rk.rkda = 0
 	rk.drive = 0
 	rk.cylinder = 0
 	rk.surface = 0

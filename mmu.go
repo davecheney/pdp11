@@ -66,8 +66,8 @@ func (kt *KT11) decode(wr bool, a, mode uint16) addr18 {
 		kt.pages[mode][i].pdr |= 1 << 6
 	}
 	aa := ((kt.pages[mode][i].addr() + addr18(block)) << 6) + disp
-	if aa&0777560 == 0777560 {
-		//fmt.Printf("decode: slow %06o -> %06o\n", a, aa)
+	if aa&0777770 == 0777560 {
+		//	fmt.Printf("decode: slow %06o -> %06o\n", a, aa)
 	}
 	return aa
 }
@@ -76,6 +76,10 @@ func (kt *KT11) write16(addr addr18, v uint16) {
 	// fmt.Printf("kt11:write16: %06o %06o\n", addr, v)
 	i := (addr & 017) >> 1
 	switch addr & ^addr18(037) {
+	case 0772200:
+		kt.pages[01][i].pdr = v
+	case 0772240:
+		kt.pages[01][i].par = v
 	case 0772300:
 		kt.pages[00][i].pdr = v
 	case 0772340:
@@ -94,6 +98,10 @@ func (kt *KT11) read16(addr addr18) uint16 {
 	// fmt.Printf("kt11:read16: %06o\n", addr)
 	i := (addr & 017) >> 1
 	switch addr & ^addr18(037) {
+	case 0772200:
+		return kt.pages[01][i].pdr
+	case 0772240:
+		return kt.pages[01][i].par
 	case 0772300:
 		return kt.pages[00][i].pdr
 	case 0772340:
