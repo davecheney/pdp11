@@ -115,7 +115,7 @@ func (kb *KB11) step() {
 					kb.printstate()
 					os.Exit(1)
 				case 1: // WAIT 000001
-					//panic("WAIT")
+					kb.WAIT()
 					return
 				case 3: // BPT  000003
 					kb.trapat(014) // Trap 14 - BPT
@@ -170,36 +170,36 @@ func (kb *KB11) step() {
 				panic(trap{INTINVAL})
 			}
 		case 1: // BR 0004 offset
-			kb.branch(instr & 0xff)
+			kb.branch(instr)
 			return
 		case 2: // BNE 0010 offset
 			if !kb.z() {
-				kb.branch(instr & 0xff)
+				kb.branch(instr)
 			}
 			return
 		case 3: // BEQ 0014 offset
 			if kb.z() {
-				kb.branch(instr & 0xff)
+				kb.branch(instr)
 			}
 			return
 		case 4: // BGE 0020 offset
 			if !(kb.n() != kb.v()) {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 5: // BLT 0024 offset
 			if kb.n() != kb.v() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 6: // BGT 0030 offset
 			if (!(kb.n() != kb.v())) && (!kb.z()) {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 7: // BLE 0034 offset
 			if (kb.n() != kb.v()) || kb.z() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 8, 9: // JSR 004RDD In two parts, JSR 004RDD continued (9 bit instruction so use 2 x 8 bit
@@ -308,42 +308,42 @@ func (kb *KB11) step() {
 		switch (instr >> 8) & 0xf { // 10xxxx 8 bit instructions first
 		case 0: // BPL 1000 offset
 			if !kb.n() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 1: // BMI 1004 offset
 			if kb.n() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 2: // BHI 1010 offset
 			if (!kb.c()) && (!kb.z()) {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 3: // BLOS 1014 offset
 			if kb.c() || kb.z() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 4: // BVC 1020 offset
 			if !kb.v() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 5: // BVS 1024 offset
 			if kb.v() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 6: // BCC 1030 offset
 			if !kb.c() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 7: // BCS 1034 offset
 			if kb.c() {
-				kb.branch(instr & 0xFF)
+				kb.branch(instr)
 			}
 			return
 		case 8: // EMT 1040 operand
@@ -438,6 +438,11 @@ func (kb *KB11) RESET() {
 	kb.unibus.reset()
 }
 
+func (kb *KB11) WAIT() {
+	fmt.Printf("WAIT\n")
+	kb.printstate()
+}
+
 // RTI 000004, RTT 000006
 func (kb *KB11) RTT() {
 	kb.R[7] = kb.pop()
@@ -488,12 +493,13 @@ func (kb *KB11) SWAB(instr uint16) {
 	}
 }
 
-func (kb *KB11) branch(o uint16) {
-	if (o & 0x80) > 0 {
-		o = -(((^o) + 1) & 0xFF)
+func (kb *KB11) branch(instr uint16) {
+	switch instr & 0x80 {
+	case 0x80:
+		kb.R[7] += (instr | 0xff00) << 1
+	default:
+		kb.R[7] += (instr & 0xff) << 1
 	}
-	o <<= 1
-	kb.R[7] += o
 }
 
 // JSR 004RDD
