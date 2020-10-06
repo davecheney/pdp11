@@ -70,6 +70,34 @@ func (rk *RK11) read16(a addr18) uint16 {
 	}
 }
 
+func (rk *RK11) write16(a addr18, v uint16) {
+	fmt.Printf("rk11:write16: %06o %06o\n", a, v)
+	switch a {
+	case 0777404:
+		// RKCS
+		rk.rkcs &= 0xf080
+		rk.rkcs |= v & ^uint16(0xf080) // Bits 7 and 12 - 15 are read only
+		fmt.Printf("RKCS: %06o v: %06o\n", rk.rkcs, v)
+	case 0777406:
+		// RKWC
+		rk.rkwc = v
+	case 0777410:
+		// RKBA
+		rk.rkba = v
+	case 0777412:
+		// RKDA
+		rk.rkda = v
+		rk.drive = uint32(v >> 13)
+		rk.cylinder = uint32(v>>5) & 0377
+		rk.surface = uint32(v>>4) & 1
+		rk.sector = uint32(v & 15)
+		fmt.Printf("rk11:rkds: drive: %o, cylinder: %03o surface: %o, sector: %o\n", rk.drive, rk.cylinder, rk.surface, rk.sector)
+	default:
+		fmt.Printf("rk11::write16 invalid write %06o: %06o\n", a, v)
+		panic(trap{INTBUS})
+	}
+}
+
 func (rk *RK11) rknotready() {
 	// fmt.Println("rk11: not ready")
 	rk.rkds &^= 1 << 6
@@ -174,34 +202,6 @@ func (rk *RK11) seek() {
 		panic(fmt.Sprintf("rkstep: failed to seek\n"))
 	}
 	// fmt.Printf("rk11:seek: pos: %08x\n", rk.units[rk.drive].pos)
-}
-
-func (rk *RK11) write16(a addr18, v uint16) {
-	fmt.Printf("rk11:write16: %06o %06o\n", a, v)
-	switch a {
-	case 0777404:
-		// RKCS
-		rk.rkcs &= 0xf080
-		rk.rkcs |= v & ^uint16(0xf080) // Bits 7 and 12 - 15 are read only
-		fmt.Printf("RKCS: %06o v: %06o\n", rk.rkcs, v)
-	case 0777406:
-		// RKWC
-		rk.rkwc = v
-	case 0777410:
-		// RKBA
-		rk.rkba = v
-	case 0777412:
-		// RKDA
-		rk.rkda = v
-		rk.drive = uint32(v >> 13)
-		rk.cylinder = uint32(v>>5) & 0377
-		rk.surface = uint32(v>>4) & 1
-		rk.sector = uint32(v & 15)
-		fmt.Printf("rk11:rkds: drive: %o, cylinder: %03o surface: %o, sector: %o\n", rk.drive, rk.cylinder, rk.surface, rk.sector)
-	default:
-		fmt.Printf("rk11::write16 invalid write %06o: %06o\n", a, v)
-		panic(trap{INTBUS})
-	}
 }
 
 func (rk *RK11) reset() {

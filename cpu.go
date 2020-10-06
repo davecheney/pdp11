@@ -1053,37 +1053,6 @@ func (kb *KB11) pop() uint16 {
 	return val
 }
 
-func (kb *KB11) read16(va uint16) uint16 {
-	a := kb.mmu.decode(false, va, kb.currentmode())
-	switch a {
-	case 0777776:
-		return kb.psw
-	case 0777774:
-		return kb.stacklimit
-	case 0777570:
-		return kb.switchregister
-	default:
-		if a == 0777404 {
-			// kb.printstate()
-		}
-		return kb.unibus.read16(a)
-	}
-}
-
-func (kb *KB11) write16(va, v uint16) {
-	a := kb.mmu.decode(true, va, kb.currentmode())
-	switch a {
-	case 0777776:
-		kb.writePSW(v)
-	case 0777774:
-		kb.stacklimit = v
-	case 0777570:
-		kb.displayregister = v
-	default:
-		kb.unibus.write16(a, v)
-	}
-}
-
 func (kb *KB11) SA(instr uint16) uint16 {
 	// reconstruct L00SSDD as L0000SS
 	instr = (instr & (1 << 15)) | ((instr >> 6) & 077)
@@ -1136,6 +1105,23 @@ func (kb *KB11) read(l int, a uint16) uint16 {
 	}
 }
 
+func (kb *KB11) read16(va uint16) uint16 {
+	a := kb.mmu.decode(false, va, kb.currentmode())
+	switch a {
+	case 0777776:
+		return kb.psw
+	case 0777774:
+		return kb.stacklimit
+	case 0777570:
+		return kb.switchregister
+	default:
+		if a == 0777404 {
+			// kb.printstate()
+		}
+		return kb.unibus.read16(a)
+	}
+}
+
 func (kb *KB11) write(l int, a, v uint16) {
 	if (a & 0177770) == 0170000 {
 		r := a & 7
@@ -1158,6 +1144,20 @@ func (kb *KB11) write(l int, a, v uint16) {
 	default:
 		mem := kb.read16(a)&0xff00 | v&0xff
 		kb.write16(a, mem)
+	}
+}
+
+func (kb *KB11) write16(va, v uint16) {
+	a := kb.mmu.decode(true, va, kb.currentmode())
+	switch a {
+	case 0777776:
+		kb.writePSW(v)
+	case 0777774:
+		kb.stacklimit = v
+	case 0777570:
+		kb.displayregister = v
+	default:
+		kb.unibus.write16(a, v)
 	}
 }
 
