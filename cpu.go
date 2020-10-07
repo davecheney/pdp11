@@ -648,7 +648,7 @@ func (kb *KB11) TST(l int, instr uint16) {
 	if dst&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if dst&max(l) == 0 {
+	if dst == 0 {
 		kb.psw |= FLAGZ
 	}
 }
