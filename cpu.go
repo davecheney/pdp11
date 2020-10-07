@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 )
 
 type KB11 struct {
@@ -17,6 +18,8 @@ type KB11 struct {
 	stacklimit, switchregister, displayregister uint16
 
 	interrupts [8]struct{ vec, pri uint16 }
+
+	print bool
 }
 
 func (kb *KB11) Reset() {
@@ -35,7 +38,6 @@ func (kb *KB11) run() {
 		t := recover()
 		switch t := t.(type) {
 		case trap:
-			fmt.Printf("trap: vec: %03o\n", t.vec)
 			kb.trapat(t.vec)
 		case interrupt:
 			defer fmt.Printf("interrupt queued: vec: %03o pri: %03o\n", t.vec, t.pri)
@@ -99,9 +101,9 @@ func (kb *KB11) step() {
 	kb.pc = kb.R[7]
 	instr := kb.fetch16()
 
-	// if kb.mmu.SR0&1 > 0 {
-	// kb.printstate()
-	// }
+	if kb.print {
+		kb.printstate()
+	}
 
 	switch instr >> 12 { // xxSSDD Mostly double operand instructions
 	case 0: // 00xxxx mixed group
@@ -441,6 +443,7 @@ func (kb *KB11) RESET() {
 func (kb *KB11) WAIT() {
 	fmt.Printf("WAIT\n")
 	kb.printstate()
+	runtime.Breakpoint()
 }
 
 // RTI 000004, RTT 000006
@@ -518,24 +521,24 @@ func (kb *KB11) JSR(instr uint16) {
 
 // CLR 0050DD, CLRB 1050DD
 func (kb *KB11) CLR(l int, instr uint16) {
+	kb.write(l, kb.DA(instr), 0)
 	kb.psw &= 0xFFF0
 	kb.psw |= FLAGZ
-	kb.write(l, kb.DA(instr), 0)
 }
 
 // COM 0051DD, COMB 1051DD
 func (kb *KB11) COM(l int, instr uint16) {
 	da := kb.DA(instr)
-	dst := ^kb.read(l, da)
+	dst := kb.read(l, da) ^ max(l)
 	kb.write(l, da, dst)
 	kb.psw &= 0xFFF0
+	kb.psw |= FLAGC
 	if dst&msb(l) == 0 {
 		kb.psw |= FLAGN
 	}
-	if dst&max(l) == 0 {
+	if dst == 0 {
 		kb.psw |= FLAGZ
 	}
-	kb.psw |= FLAGC
 }
 
 // INC 0052DD, INCB 1052DD
@@ -543,6 +546,7 @@ func (kb *KB11) INC(l int, instr uint16) {
 	da := kb.DA(instr)
 	dst := kb.read(l, da) + 1
 	kb.write(l, da, dst)
+	kb.psw &= 0xFFF1
 	kb.setNZV(l, dst)
 }
 
@@ -564,7 +568,7 @@ func (kb *KB11) NEG(l int, instr uint16) {
 	if dst&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if dst&max(l) == 0 {
+	if dst == 0 {
 		kb.psw |= FLAGZ
 	} else {
 		kb.psw |= FLAGC
@@ -579,44 +583,57 @@ func (kb *KB11) ADC(l int, instr uint16) {
 	dst := kb.read(l, da)
 	switch kb.psw & FLAGC {
 	case FLAGC:
-		result := (dst + kb.psw&FLAGC)
-		kb.write(l, da, result)
 		kb.psw &= 0xFFF0
-		kb.setNZ(l, result)
-		if result&max(l) == max(l) {
+		if (dst+1)&msb(l) > 0 {
+			kb.psw |= FLAGN
+		}
+		if dst == max(l) {
+			kb.psw |= FLAGZ
+		}
+		if dst == 0077777 {
 			kb.psw |= FLAGV
 		}
-		if dst&max(l) == max(l) {
+		if dst == 0177777 {
 			kb.psw |= FLAGC
 		}
+		kb.write(l, da, (dst+1)&max(l))
 	default:
-		kb.setNZ(l, dst)
+		kb.psw &= 0xFFF0
+		if dst&msb(l) > 0 {
+			kb.psw |= FLAGN
+		}
+		if dst == 0 {
+			kb.psw |= FLAGZ
+		}
 	}
 }
 
 func (kb *KB11) SBC(l int, instr uint16) {
 	da := kb.DA(instr)
 	dst := kb.read(l, da)
-	result := dst - kb.psw&FLAGC
-	if kb.c() {
-		kb.write(l, da, result)
+	switch kb.psw & FLAGC {
+	case FLAGC:
 		kb.psw &= 0xFFF0
-		if result&msb(l) > 0 {
+		if (dst-1)&msb(l) > 0 {
 			kb.psw |= FLAGN
 		}
-		if result&max(l) == 0 {
+		if dst-1 == 0 {
 			kb.psw |= FLAGZ
-		}
-		if result&max(l) != max(l) {
-			kb.psw |= FLAGC
 		}
 		if dst&msb(l) > 0 {
 			kb.psw |= FLAGV
 		}
-	} else {
-		kb.psw &= 0xFFF0 | FLAGC | FLAGV
+		if dst == 0 {
+			kb.psw |= FLAGC
+		}
+		kb.write(l, da, (dst-1)&max(l))
+	default:
+		kb.psw &= 0xFFF0 | FLAGC
 		if dst&msb(l) > 0 {
 			kb.psw |= FLAGN
+		}
+		if dst == 0 {
+			kb.psw |= FLAGZ
 		}
 		if dst&max(l) == 0 {
 			kb.psw |= FLAGZ
@@ -628,7 +645,12 @@ func (kb *KB11) SBC(l int, instr uint16) {
 func (kb *KB11) TST(l int, instr uint16) {
 	dst := kb.read(l, kb.DA(instr))
 	kb.psw &= 0xFFF0
-	kb.setNZ(l, dst)
+	if dst&msb(l) > 0 {
+		kb.psw |= FLAGN
+	}
+	if dst&max(l) == 0 {
+		kb.psw |= FLAGZ
+	}
 }
 
 func (kb *KB11) ROR(l int, instr uint16) {
@@ -649,7 +671,7 @@ func (kb *KB11) ROR(l int, instr uint16) {
 	if result&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if !(result&max(l) > 0) {
+	if result&max(l) == 0 {
 		kb.psw |= FLAGZ
 	}
 	if (result&msb(l) > 0) != (dst&1 > 0) {
@@ -764,12 +786,12 @@ func (kb *KB11) MTPI(instr uint16) {
 func (kb *KB11) SXT(instr uint16) {
 	if kb.n() {
 		kb.write(2, kb.DA(instr), 0xffff)
-		kb.psw &= ^uint16(FLAGZ)
+		kb.psw &^= FLAGZ
 	} else {
 		kb.write(2, kb.DA(instr), 0)
-		kb.psw |= uint16(FLAGZ)
+		kb.psw |= FLAGZ
 	}
-	kb.psw &= ^uint16(FLAGV)
+	kb.psw &^= FLAGV
 }
 
 // MOV 01SSDD, MOVB 11SSDD
@@ -832,7 +854,7 @@ func (kb *KB11) BIC(l int, instr uint16) {
 func (kb *KB11) BIS(l int, instr uint16) {
 	src := kb.read(l, kb.SA(instr))
 	da := kb.DA(instr)
-	dst := kb.read(l, da) | src
+	dst := src | kb.read(l, da)
 	kb.write(l, da, dst)
 	kb.setNZ(l, dst)
 }
@@ -845,8 +867,13 @@ func (kb *KB11) ADD(instr uint16) {
 	sum := src + dst
 	kb.write(2, da, sum)
 	kb.psw &= 0xFFF0
-	kb.setNZ(2, sum)
-	if (!((src^dst)&0x8000 > 0)) && ((dst^sum)&0x8000 > 0) {
+	if sum == 0 {
+		kb.psw |= FLAGZ
+	}
+	if sum&msb(2) > 0 {
+		kb.psw |= FLAGN
+	}
+	if (!((src^dst)&msb(2) > 0)) && ((dst^sum)&msb(2) > 0) {
 		kb.psw |= FLAGV
 	}
 	if int(src)+int(dst) > 0xffff {
@@ -854,16 +881,39 @@ func (kb *KB11) ADD(instr uint16) {
 	}
 }
 
+// SUB 16SSDD
+func (kb *KB11) SUB(instr uint16) {
+	// mask off top bit of instr so SA computes L=2
+	src := kb.read(2, kb.SA(instr&0077777))
+	da := kb.DA(instr)
+	dst := kb.read(2, da)
+	result := dst - src
+	kb.write(2, da, result)
+	kb.psw &= 0xFFF0
+	if result == 0 {
+		kb.psw |= FLAGZ
+	}
+	if result&msb(2) > 0 {
+		kb.psw |= FLAGN
+	}
+	if ((src^dst)&msb(2) > 0) && (!((dst^result)&msb(2) > 0)) {
+		kb.psw |= FLAGV
+	}
+	if src > dst {
+		kb.psw |= FLAGC
+	}
+}
+
 func (kb *KB11) MUL(instr uint16) {
 	reg := (instr >> 6) & 7
 	val1 := int32(kb.R[reg])
-	if val1&0x8000 > 0 {
-		val1 = -((0xFFFF ^ val1) + 1)
+	if val1 < 0 {
+		val1 = -val1
 	}
 	da := kb.DA(instr)
 	val2 := int32(kb.read(2, da))
-	if val2&0x8000 > 0 {
-		val2 = -((0xFFFF ^ val2) + 1)
+	if val2 < 0 {
+		val2 = -val2
 	}
 	sval := val1 * val2
 	kb.R[(instr>>6)&7] = uint16(sval >> 16)
@@ -935,10 +985,10 @@ func (kb *KB11) ASH(instr uint16) {
 	if sval == 0 {
 		kb.psw |= FLAGZ
 	}
-	if sval&0x8000 > 0 {
+	if sval&msb(2) > 0 {
 		kb.psw |= FLAGN
 	}
-	if (sval&0x8000)^(reg&0x8000) > 0 {
+	if (sval&msb(2))^(reg&msb(2)) > 0 {
 		kb.psw |= FLAGV
 	}
 }
@@ -983,8 +1033,7 @@ func (kb *KB11) ASHC(instr uint16) {
 func (kb *KB11) XOR(instr uint16) {
 	reg := kb.R[(instr>>6)&7]
 	da := kb.DA(instr)
-	dst := kb.read(2, da)
-	dst = reg ^ dst
+	dst := reg ^ kb.read(2, da)
 	kb.write(2, da, dst)
 	kb.setNZ(2, dst)
 }
@@ -998,31 +1047,16 @@ func (kb *KB11) SOB(instr uint16) {
 	}
 }
 
-// SUB 16SSDD
-func (kb *KB11) SUB(instr uint16) {
-	// mask off top bit of instr so SA computes L=2
-	src := kb.read(2, kb.SA(instr&0077777))
-	da := kb.DA(instr)
-	dst := kb.read(2, da)
-	result := dst + (^(src) + 1)
-	kb.write(2, da, result)
-	kb.psw &= 0xFFF0
-	kb.setNZ(2, result)
-	if ((src^dst)&0x8000 > 0) && (!((dst^result)&0x8000 > 0)) {
-		kb.psw |= FLAGV
-	}
-	if src > dst {
-		kb.psw |= FLAGC
-	}
-}
-
 func (kb *KB11) trapat(vec uint16) {
 	if vec&1 > 0 {
 		fmt.Printf("Thou darst calling trapat() with an odd vector number?\n")
 		os.Exit(1)
 	}
 
-	// fmt.Printf("trap: %03o\n", vec)
+	fmt.Printf("trap: vec: %03o\n", vec)
+	if vec == 0220 {
+		//	kb.print = true
+	}
 
 	psw := kb.psw
 	kb.kernelmode()
@@ -1030,10 +1064,7 @@ func (kb *KB11) trapat(vec uint16) {
 	kb.push(kb.R[7])
 
 	kb.R[7] = kb.read16(vec)
-	psw = kb.read16(vec + 2)
-	psw &^= (1<<13 | 1<<12)
-	psw |= kb.previousmode() << 12
-	kb.writePSW(psw)
+	kb.writePSW(kb.read16(vec+2) | (kb.previousmode() << 12))
 }
 
 func (kb *KB11) fetch16() uint16 {
@@ -1113,10 +1144,10 @@ func (kb *KB11) read16(va uint16) uint16 {
 	case 0777774:
 		return kb.stacklimit
 	case 0777570:
-		return kb.switchregister
+		return 0173030 // kb.switchregister
 	default:
-		if a == 0777404 {
-			// kb.printstate()
+		if a == 0140000 {
+			kb.printstate()
 		}
 		return kb.unibus.read16(a)
 	}
@@ -1157,17 +1188,20 @@ func (kb *KB11) write16(va, v uint16) {
 	case 0777570:
 		kb.displayregister = v
 	default:
+		if a == 0140000 {
+			kb.printstate()
+		}
 		kb.unibus.write16(a, v)
 	}
 }
 
 // Set N & Z clearing V (C unchanged)
 func (kb *KB11) setNZ(l int, v uint16) {
-	kb.psw &= (0xFFF0 | FLAGC)
+	kb.psw &= 0xfff1
 	if v&msb(l) > 0 {
 		kb.psw |= FLAGN
 	}
-	if v&max(l) == 0 {
+	if v == 0 {
 		kb.psw |= FLAGZ
 	}
 }
@@ -1175,7 +1209,7 @@ func (kb *KB11) setNZ(l int, v uint16) {
 // Set N, Z & V (C unchanged)
 func (kb *KB11) setNZV(l int, v uint16) {
 	kb.setNZ(l, v)
-	if v == msb(l) {
+	if v == msb(l)-1 {
 		kb.psw |= FLAGV
 	}
 }

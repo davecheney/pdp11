@@ -330,7 +330,7 @@ func TestSBC(t *testing.T) {
 		is.Equal(cpu.n(), (dst-1)&0x8000 > 0)
 		is.Equal(cpu.z(), dst-1 == 0)
 		is.Equal(cpu.v(), dst == 0100000)
-		is.Equal(cpu.c(), dst != 0)
+		is.Equal(cpu.c(), dst == 0)
 	}
 }
 
@@ -363,7 +363,7 @@ func TestSBCB(t *testing.T) {
 		is.Equal(cpu.n(), (dst-1)&0x80 > 0)
 		is.Equal(cpu.z(), (dst-1)&0xff == 0)
 		is.Equal(cpu.v(), dst&0xff == 0200)
-		is.Equal(cpu.c(), dst&0xff != 0)
+		is.Equal(cpu.c(), dst&0xff == 0)
 	}
 }
 
@@ -628,7 +628,7 @@ func TestDEC(t *testing.T) {
 		is.Equal(cpu.R[0], result)
 		is.Equal(cpu.n(), result&0x8000 > 0)
 		is.Equal(cpu.z(), result == 0)
-		is.Equal(cpu.v(), result == 0x8000)
+		is.Equal(cpu.v(), result == msb(2)-1)
 	}
 }
 
@@ -647,7 +647,7 @@ func TestDECB(t *testing.T) {
 		is.Equal(cpu.R[0]&0xff, result)
 		is.Equal(cpu.n(), result&0x80 > 0)
 		is.Equal(cpu.z(), result == 0)
-		is.Equal(cpu.v(), result == 0x80)
+		is.Equal(cpu.v(), result == msb(1)-1)
 	}
 }
 
@@ -664,9 +664,9 @@ func TestINC(t *testing.T) {
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := dst + 1
 		is.Equal(cpu.R[0], result)
-		is.Equal(cpu.n(), result&0x8000 > 0)
+		is.Equal(cpu.n(), result&msb(2) > 0)
 		is.Equal(cpu.z(), result == 0)
-		is.Equal(cpu.v(), result == 0x8000)
+		is.Equal(cpu.v(), result == msb(2)-1)
 	}
 }
 
@@ -683,9 +683,9 @@ func TestINCB(t *testing.T) {
 		t.Logf("R0: %06o, psw: %06o", dst, cpu.psw)
 		result := (dst + 1) & 0xff
 		is.Equal(cpu.R[0]&0xff, result)
-		is.Equal(cpu.n(), result&0x80 > 0)
+		is.Equal(cpu.n(), result&msb(1) > 0)
 		is.Equal(cpu.z(), result == 0)
-		is.Equal(cpu.v(), result == 0x80)
+		is.Equal(cpu.v(), result == msb(1)-1)
 	}
 }
 
